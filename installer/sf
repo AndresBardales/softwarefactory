@@ -1,0 +1,258 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# sf — Software Factory CLI
+# ==============================================================================
+# Usage: sf <command> [options]
+#
+# Commands:
+#   install     Install Software Factory (runs the installer wizard)
+#   status      Show cluster health and app status
+#   apps        List deployed applications
+#   logs        View logs for an app or component
+#   upgrade     Upgrade Software Factory to latest version
+#   config      Show or edit configuration
+#   add-worker  Add a cloud worker node (hybrid/cloud mode)
+#   uninstall   Remove Software Factory (keeps data by default)
+#   help        Show this help message
+# ==============================================================================
+
+set -euo pipefail
+
+SF_HOME="${SF_HOME:-$HOME/.software-factory}"
+SF_CONFIG="$SF_HOME/config.env"
+
+# Colors
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'; BOLD='\033[1m'
+
+# Load config if available
+[ -f "$SF_CONFIG" ] && source "$SF_CONFIG"
+
+# ==============================================================================
+
+cmd_status() {
+  echo -e "${BOLD}${CYAN}Software Factory Status${NC}"
+  echo ""
+
+  # Mode
+  echo -e "  ${BOLD}Mode:${NC}    ${SF_MODE:-unknown}"
+  echo -e "  ${BOLD}Domain:${NC}  ${SF_DOMAIN:-localhost}"
+  echo ""
+
+  # Nodes
+  echo -e "  ${BOLD}Nodes:${NC}"
+  kubectl get nodes -o custom-columns="NAME:.metadata.name,STATUS:.status.conditions[-1].type,VERSION:.status.nodeInfo.kubeletVersion,CPU:.status.capacity.cpu,MEMORY:.status.capacity.memory" 2>/dev/null \
+    | sed 's/^/    /'
+  echo ""
+
+  # Core Services
+  echo -e "  ${BOLD}Core Services:${NC}"
+  local services=("prod:datastore:MongoDB" "prod:nexus-api:API" "prod:nexus-console:Console" "argocd:argocd-server:ArgoCD" "vault:vault:Vault")
+  for svc in "${services[@]}"; do
+    IFS=: read -r ns app label <<< "$svc"
+    local status
+    status=$(kubectl -n "$ns" get pod -l "app=$app" -o jsonpath='{.items[0].status.phase}' 2>/dev/null || \
+             kubectl -n "$ns" get pod -l "app.kubernetes.io/name=$app" -o jsonpath='{.items[0].status.phase}' 2>/dev/null || \
+             echo "NotFound")
+    local restarts
+    restarts=$(kubectl -n "$ns" get pod -l "app=$app" -o jsonpath='{.items[0].status.containerStatuses[0].restartCount}' 2>/dev/null || echo "?")
+
+    if [ "$status" = "Running" ]; then
+      echo -e "    ${GREEN}●${NC} ${label}: Running (restarts: ${restarts})"
+    else
+      echo -e "    ${RED}●${NC} ${label}: ${status}"
+    fi
+  done
+  echo ""
+
+  # Resource usage
+  echo -e "  ${BOLD}Resource Usage:${NC}"
+  kubectl top nodes 2>/dev/null | sed 's/^/    /' || echo "    (metrics-server not available)"
+  echo ""
+
+  # App count
+  local app_count
+  app_count=$(kubectl -n prod get pods -l "app notin (datastore,nexus-api,nexus-console)" --no-headers 2>/dev/null | wc -l)
+  echo -e "  ${BOLD}User Apps:${NC} ${app_count} pods in prod"
+}
+
+cmd_apps() {
+  echo -e "${BOLD}${CYAN}Deployed Applications${NC}"
+  echo ""
+
+  # Get from nexus-api if available
+  local api_ip
+  api_ip=$(kubectl -n prod get pod -l app=nexus-api -o jsonpath='{.items[0].status.podIP}' 2>/dev/null)
+
+  if [ -n "$api_ip" ]; then
+    local token
+    token=$(curl -sf --max-time 5 -X POST "http://${api_ip}:8000/api/v1/auth/token" \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "username=${SF_ADMIN_USER:-admin}&password=${SF_ADMIN_PASSWORD:-}" \
+      2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || echo "")
+
+    if [ -n "$token" ]; then
+      curl -sf --max-time 10 "http://${api_ip}:8000/api/v1/apps" \
+        -H "Authorization: Bearer ${token}" 2>/dev/null \
+        | python3 -c "
+import sys, json
+apps = json.load(sys.stdin)
+if not apps:
+    print('  No apps deployed yet. Use the UI to create your first app!')
+else:
+    print(f'  {len(apps)} app(s) deployed:')
+    print()
+    for a in apps:
+        name = a.get('name', '?')
+        status = a.get('status', '?')
+        envs = ', '.join(a.get('environments', []))
+        template = a.get('template', '?')
+        icon = '●' if status == 'running' else '○'
+        print(f'  {icon} {name:<25} {status:<12} [{template}] envs: {envs}')
+" 2>/dev/null
+    else
+      echo "  Could not authenticate. Run 'sf config' to check credentials."
+    fi
+  else
+    echo "  nexus-api not available. Listing pods directly:"
+    echo ""
+    kubectl get pods -n prod --no-headers 2>/dev/null | grep -v "datastore\|nexus-" | awk '{printf "  %-35s %s\n", $1, $3}'
+  fi
+}
+
+cmd_logs() {
+  local app="${1:-}"
+  if [ -z "$app" ]; then
+    echo "Usage: sf logs <app-name> [--env prod|dev|staging] [--follow]"
+    return 1
+  fi
+
+  local namespace="prod"
+  local follow=""
+
+  shift
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --env) namespace="$2"; shift 2 ;;
+      --follow|-f) follow="-f"; shift ;;
+      *) shift ;;
+    esac
+  done
+
+  echo -e "${BOLD}Logs for ${app} (namespace: ${namespace})${NC}"
+  kubectl logs -n "$namespace" -l "app=$app" --tail=100 $follow 2>/dev/null || \
+    echo "No pods found for app '$app' in namespace '$namespace'"
+}
+
+cmd_config() {
+  echo -e "${BOLD}${CYAN}Software Factory Configuration${NC}"
+  echo -e "  ${BOLD}Config file:${NC} $SF_CONFIG"
+  echo ""
+
+  if [ -f "$SF_CONFIG" ]; then
+    # Show config without secrets
+    while IFS='=' read -r key value; do
+      [[ "$key" =~ ^#.*$ ]] && continue
+      [[ -z "$key" ]] && continue
+      # Mask sensitive values
+      if [[ "$key" =~ TOKEN|PASSWORD|SECRET|KEY ]]; then
+        echo -e "  ${key}=***"
+      else
+        echo -e "  ${key}=${value}"
+      fi
+    done < "$SF_CONFIG"
+  else
+    echo "  No configuration found. Run 'sf install' first."
+  fi
+}
+
+cmd_upgrade() {
+  echo -e "${BOLD}${CYAN}Upgrading Software Factory${NC}"
+  echo ""
+
+  # Pull latest images
+  local images=("${SF_DOCKER_USERNAME:-andresbardalescalva}/nexus-api:latest" "${SF_DOCKER_USERNAME:-andresbardalescalva}/nexus-console:latest")
+
+  for img in "${images[@]}"; do
+    echo -e "  ${BLUE}[→]${NC} Pulling $img..."
+    kubectl -n prod set image deployment/"$(echo "$img" | cut -d/ -f2 | cut -d: -f1)" \
+      "$(echo "$img" | cut -d/ -f2 | cut -d: -f1)=$img" 2>/dev/null
+  done
+
+  # Restart deployments
+  kubectl -n prod rollout restart deployment/nexus-api deployment/nexus-console 2>/dev/null
+  echo ""
+  echo -e "  ${GREEN}[✓]${NC} Upgrade initiated. Pods will restart with latest images."
+  echo -e "  Run 'sf status' to check progress."
+}
+
+cmd_add_worker() {
+  echo -e "${BOLD}${CYAN}Add Cloud Worker${NC}"
+  echo ""
+
+  if [ "${SF_MODE:-}" = "local" ]; then
+    echo "  Worker nodes are only available in cloud or hybrid mode."
+    echo "  Current mode: local"
+    echo ""
+    echo "  To switch to hybrid mode, run: sf config --set SF_MODE=hybrid"
+    return 1
+  fi
+
+  echo "  This will add a new worker node to your cluster."
+  echo "  Provider: AWS (region: ${SF_AWS_REGION:-us-east-1})"
+  echo ""
+  echo "  [!] Not yet implemented. Planned for v1.1."
+  echo "  For now, modify worker_desired_count in terraform.tfvars and run terraform apply."
+}
+
+cmd_help() {
+  cat <<HELP
+${BOLD}Software Factory CLI v${SF_VERSION:-1.0.0}${NC}
+
+${BOLD}Usage:${NC} sf <command> [options]
+
+${BOLD}Commands:${NC}
+  install           Install Software Factory (interactive wizard)
+  status            Show cluster health, nodes, and services
+  apps              List all deployed applications
+  logs <app>        View logs for an app (--env, --follow)
+  config            Show current configuration
+  upgrade           Pull latest images and restart services
+  add-worker        Add a cloud worker node (cloud/hybrid)
+  uninstall         Remove Software Factory
+  help              Show this help
+
+${BOLD}Examples:${NC}
+  sf status                   Check everything is running
+  sf apps                     See your deployed apps
+  sf logs my-api --follow     Stream logs from my-api
+  sf upgrade                  Update to latest version
+
+${BOLD}Environment:${NC}
+  SF_HOME     Config directory (default: ~/.software-factory)
+
+HELP
+}
+
+# ==============================================================================
+# MAIN
+# ==============================================================================
+
+command="${1:-help}"
+shift 2>/dev/null || true
+
+case "$command" in
+  install)    exec bash "$(dirname "$0")/install.sh" ;;
+  status)     cmd_status ;;
+  apps)       cmd_apps ;;
+  logs)       cmd_logs "$@" ;;
+  config)     cmd_config ;;
+  upgrade)    cmd_upgrade ;;
+  add-worker) cmd_add_worker ;;
+  help|--help|-h) cmd_help ;;
+  *)
+    echo -e "${RED}Unknown command: $command${NC}"
+    echo "Run 'sf help' for usage."
+    exit 1
+    ;;
+esac
