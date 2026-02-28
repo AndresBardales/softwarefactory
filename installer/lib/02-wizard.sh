@@ -14,8 +14,7 @@ run_wizard() {
     "Local — apps on localhost, zero cloud cost" \
     "Cloud — deploy to AWS with public domain" \
     "Hybrid — local master + cloud gateway for public access"
-  local mode_idx=$?
-  case $mode_idx in
+  case $PROMPT_RESULT in
     0) SF_MODE="local" ;;
     1) SF_MODE="cloud" ;;
     2) SF_MODE="hybrid" ;;
@@ -30,8 +29,7 @@ run_wizard() {
     "Bitbucket (recommended — integrated pipelines)" \
     "GitHub" \
     "GitLab"
-  local git_idx=$?
-  case $git_idx in
+  case $PROMPT_RESULT in
     0) SF_GIT_PROVIDER="bitbucket" ;;
     1) SF_GIT_PROVIDER="github" ;;
     2) SF_GIT_PROVIDER="gitlab" ;;

@@ -39,7 +39,8 @@ prompt_value() {
   eval "$var_name='$response'"
 }
 
-# Prompt choice from options
+# Prompt choice from options (sets PROMPT_RESULT to 0-based index)
+PROMPT_RESULT=0
 prompt_choice() {
   local prompt="$1"
   shift
@@ -54,7 +55,8 @@ prompt_choice() {
   while true; do
     read -r -p "    > " choice
     if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#options[@]}" ]; then
-      return $((choice - 1))
+      PROMPT_RESULT=$((choice - 1))
+      return 0
     fi
     echo -e "    ${RED}Invalid choice. Enter 1-${#options[@]}${NC}"
   done
