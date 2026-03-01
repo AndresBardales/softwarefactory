@@ -191,17 +191,21 @@ print(hashed.decode())
   fi
 
   # --------------------------------------------------
-  # 6. Docker Hub credentials (always)
+  # 6. Docker Hub credentials (only if provided)
   # --------------------------------------------------
-  log_step "Configuring Docker Hub credentials..."
-  for ns in prod dev staging; do
-    kubectl create secret docker-registry dockerhub-credentials \
-      -n "$ns" \
-      --docker-server=https://index.docker.io/v1/ \
-      --docker-username="$SF_DOCKER_USERNAME" \
-      --docker-password="$SF_DOCKER_TOKEN" \
-      --docker-email="${SF_GIT_EMAIL:-noreply@softwarefactory.dev}" \
-      --dry-run=client -o yaml | kubectl apply -f -
-  done
-  log_info "Docker Hub credentials configured"
+  if [ -n "${SF_DOCKER_TOKEN:-}" ] && [ -n "${SF_DOCKER_USERNAME:-}" ]; then
+    log_step "Configuring Docker Hub credentials..."
+    for ns in prod dev staging; do
+      kubectl create secret docker-registry dockerhub-credentials \
+        -n "$ns" \
+        --docker-server=https://index.docker.io/v1/ \
+        --docker-username="$SF_DOCKER_USERNAME" \
+        --docker-password="$SF_DOCKER_TOKEN" \
+        --docker-email="${SF_GIT_EMAIL:-noreply@softwarefactory.dev}" \
+        --dry-run=client -o yaml | kubectl apply -f -
+    done
+    log_info "Docker Hub credentials configured"
+  else
+    log_info "Docker Hub credentials: skipped (configure in web wizard)"
+  fi
 }
