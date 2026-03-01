@@ -45,6 +45,25 @@ deploy_software_factory() {
   image_tag=$(resolve_image_tag "$SF_DOCKER_USERNAME")
   log_info "Using image tag: $image_tag"
 
+  # Create prod namespace if it doesn't exist
+  kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f -
+
+  # Docker Hub pull secret (only if credentials are provided)
+  local pull_secret_block=""
+  if [ -n "${SF_DOCKER_TOKEN:-}" ] && [ -n "${SF_DOCKER_USERNAME:-}" ]; then
+    kubectl create secret docker-registry dockerhub-credentials \
+      -n prod \
+      --docker-server=https://index.docker.io/v1/ \
+      --docker-username="$SF_DOCKER_USERNAME" \
+      --docker-password="$SF_DOCKER_TOKEN" \
+      --dry-run=client -o yaml | kubectl apply -f -
+    pull_secret_block='imagePullSecrets:
+      - name: dockerhub-credentials'
+    log_info "Docker Hub credentials configured"
+  else
+    log_info "No Docker Hub credentials — pulling public images"
+  fi
+
   # --------------------------------------------------
   # 1. MongoDB (platform database)
   # --------------------------------------------------
@@ -160,8 +179,7 @@ spec:
       labels:
         app: nexus-api
     spec:
-      imagePullSecrets:
-      - name: dockerhub-credentials
+      ${pull_secret_block}
       serviceAccountName: default
       containers:
       - name: nexus-api
@@ -176,9 +194,9 @@ spec:
         - name: DOMAIN
           value: "${SF_DOMAIN}"
         - name: NEXUS_ADMIN_USER
-          value: "${SF_ADMIN_USER}"
+          value: "${SF_ADMIN_USER:-admin}"
         - name: NEXUS_ADMIN_PASSWORD
-          value: "${SF_ADMIN_PASSWORD}"
+          value: "${SF_ADMIN_PASSWORD:-}"
         - name: SF_MODE
           value: "${SF_MODE}"
         resources:
@@ -239,8 +257,7 @@ spec:
       labels:
         app: nexus-console
     spec:
-      imagePullSecrets:
-      - name: dockerhub-credentials
+      ${pull_secret_block}
       containers:
       - name: nexus-console
         image: ${SF_DOCKER_USERNAME}/nexus-console:${image_tag}
