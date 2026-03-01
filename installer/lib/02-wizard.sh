@@ -62,10 +62,35 @@ run_wizard() {
   SF_DOMAIN="localhost"
   SF_ELASTIC_IP=""
   SF_ENABLE_TLS=false
+  SF_TUNNEL_PROVIDER=""
+  SF_CLOUDFLARE_TOKEN=""
+  SF_CLOUDFLARE_ACCOUNT_ID=""
 
   if [ "$SF_MODE" = "cloud" ] || [ "$SF_MODE" = "hybrid" ]; then
     prompt_value "Your domain name (e.g., futurefarms.mx)" "" SF_DOMAIN
     SF_ENABLE_TLS=true
+
+    if [ "$SF_MODE" = "hybrid" ]; then
+      echo ""
+      log_info "Hybrid mode needs a tunnel to expose local apps publicly."
+      prompt_choice "Choose tunnel provider:" \
+        "Cloudflare Tunnel (recommended — free, no VPS needed)" \
+        "Tailscale Funnel (free, limited to HTTPS)" \
+        "Skip for now (configure later via web wizard)"
+      case $PROMPT_RESULT in
+        0) SF_TUNNEL_PROVIDER="cloudflare" ;;
+        1) SF_TUNNEL_PROVIDER="tailscale-funnel" ;;
+        2) SF_TUNNEL_PROVIDER="" ;;
+      esac
+
+      if [ "$SF_TUNNEL_PROVIDER" = "cloudflare" ]; then
+        echo ""
+        log_info "Create a Cloudflare API token at: https://dash.cloudflare.com/profile/api-tokens"
+        log_info "Required permissions: Zone:DNS:Edit + Account:Cloudflare Tunnel:Edit"
+        prompt_value "Cloudflare API Token" "" SF_CLOUDFLARE_TOKEN true
+        prompt_value "Cloudflare Account ID (from dashboard URL)" "" SF_CLOUDFLARE_ACCOUNT_ID
+      fi
+    fi
 
     if [ "$SF_MODE" = "cloud" ]; then
       prompt_value "AWS Elastic IP (leave blank to auto-create)" "" SF_ELASTIC_IP
@@ -162,6 +187,11 @@ SF_DOCKER_TOKEN="${SF_DOCKER_TOKEN}"
 SF_DOMAIN="${SF_DOMAIN}"
 SF_ELASTIC_IP="${SF_ELASTIC_IP}"
 SF_ENABLE_TLS="${SF_ENABLE_TLS}"
+
+# Tunnel
+SF_TUNNEL_PROVIDER="${SF_TUNNEL_PROVIDER:-}"
+SF_CLOUDFLARE_TOKEN="${SF_CLOUDFLARE_TOKEN:-}"
+SF_CLOUDFLARE_ACCOUNT_ID="${SF_CLOUDFLARE_ACCOUNT_ID:-}"
 
 # Tailscale
 SF_TAILSCALE_ENABLED="${SF_TAILSCALE_ENABLED}"

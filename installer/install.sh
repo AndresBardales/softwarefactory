@@ -122,12 +122,16 @@ main() {
   deploy_software_factory
   echo ""
 
-  # Phase 6: Post-installation setup
+  # Phase 6: Cloudflare Tunnel (hybrid mode)
+  setup_cloudflare_tunnel
+  echo ""
+
+  # Phase 7: Post-installation setup
   log_section "Post-Installation"
   run_post_install
   echo ""
 
-  # Phase 7: Health check
+  # Phase 8: Health check
   log_section "Health Check"
   wait_for_healthy
   echo ""
