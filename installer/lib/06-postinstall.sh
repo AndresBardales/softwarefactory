@@ -7,9 +7,13 @@ run_post_install() {
   log_step "Running post-installation setup..."
 
   # Wait for nexus-api to be ready
-  wait_for "nexus-api pod" \
+  if ! wait_for "nexus-api pod" \
     "kubectl -n prod get pod -l app=nexus-api -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null | grep -q true" \
-    180
+    180; then
+    log_warn "nexus-api not ready after 180s — skipping post-install seed"
+    log_warn "The web wizard will handle configuration instead"
+    return 0
+  fi
 
   # Get nexus-api pod IP for direct communication
   local api_ip

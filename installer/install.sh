@@ -150,6 +150,16 @@ CONF
   install_k3s
   echo ""
 
+  # Validate cluster connectivity before proceeding
+  log_step "Validating cluster connectivity..."
+  if ! validate_kubectl; then
+    log_error "Cannot connect to Kubernetes cluster after K3s install"
+    log_error "Try restarting K3s: sudo systemctl restart k3s"
+    exit 1
+  fi
+  log_info "Cluster connectivity validated"
+  echo ""
+
   # Phase 4: Install core infrastructure
   log_section "Installing Core Infrastructure"
   install_core_infra
@@ -162,18 +172,19 @@ CONF
 
   # Phase 6: Cloudflare Tunnel (only if configured)
   if [ -n "${SF_TUNNEL_PROVIDER:-}" ]; then
-    setup_cloudflare_tunnel
+    log_section "Cloudflare Tunnel"
+    setup_cloudflare_tunnel || log_warn "Tunnel setup failed — configure later via web wizard"
     echo ""
   fi
 
   # Phase 7: Post-installation setup (only if full config)
   if [ "$SF_BOOTSTRAP" != true ]; then
     log_section "Post-Installation"
-    run_post_install
+    run_post_install || log_warn "Post-install encountered issues — check logs"
     echo ""
 
     log_section "Health Check"
-    wait_for_healthy
+    wait_for_healthy || log_warn "Some services may not be fully healthy yet"
     echo ""
   fi
 

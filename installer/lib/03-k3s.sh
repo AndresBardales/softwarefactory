@@ -3,6 +3,19 @@
 # lib/03-k3s.sh — K3s installation and configuration
 # ==============================================================================
 
+# Helper: copy kubeconfig from K3s to ~/.kube/config
+setup_kubeconfig() {
+  if [ -f /etc/rancher/k3s/k3s.yaml ]; then
+    mkdir -p "$HOME/.kube"
+    sudo cp /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"
+    sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
+    chmod 600 "$HOME/.kube/config"
+    log_info "Kubeconfig copied to ~/.kube/config"
+  else
+    log_warn "K3s kubeconfig not found at /etc/rancher/k3s/k3s.yaml"
+  fi
+}
+
 install_k3s() {
   # Case 1: K3s installed and API is up — nothing to do
   if command -v k3s &>/dev/null && k3s kubectl get nodes &>/dev/null 2>&1; then
@@ -37,24 +50,19 @@ WSLCONF
       log_info "Updated K3s config for WSL2 compatibility"
     fi
 
-    # Regenerate kubeconfig from fresh K3s certs (avoids stale x509 errors)
-    if [ -f /etc/rancher/k3s/k3s.yaml ]; then
-      mkdir -p "$HOME/.kube"
-      sudo cp /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"
-      sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
-      chmod 600 "$HOME/.kube/config"
-    fi
-
     sudo systemctl start k3s 2>/dev/null || true
 
-    # If start failed, try clean reinstall
-    if ! wait_for "K3s API server" "k3s kubectl get nodes" 30 2>/dev/null; then
+    # Wait for K3s API to become available, then copy fresh kubeconfig
+    if ! wait_for "K3s API server" "k3s kubectl get nodes" 60 2>/dev/null; then
       log_warn "K3s failed to start — performing clean reinstall..."
+      sudo systemctl stop k3s 2>/dev/null || true
       /usr/local/bin/k3s-uninstall.sh 2>/dev/null || true
       rm -f "$HOME/.kube/config"
     else
+      # Copy kubeconfig AFTER K3s is ready (fresh certs, avoids stale x509 errors)
+      setup_kubeconfig
       log_info "K3s started"
-      kubectl get nodes
+      kubectl get nodes 2>/dev/null || k3s kubectl get nodes
       return 0
     fi
   fi
@@ -119,11 +127,8 @@ WSLCONF
   # Wait for K3s to be ready
   wait_for "K3s API server" "k3s kubectl get nodes" 60
 
-  # Set up kubeconfig
-  mkdir -p "$HOME/.kube"
-  sudo cp /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"
-  sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
-  chmod 600 "$HOME/.kube/config"
+  # Set up kubeconfig (AFTER K3s is ready so certs are valid)
+  setup_kubeconfig
 
   # If mode allows remote access, update kubeconfig server URL
   if [ "$SF_MODE" = "cloud" ] && [ -n "$SF_ELASTIC_IP" ]; then
@@ -136,7 +141,7 @@ WSLCONF
   fi
 
   log_info "K3s installed and running"
-  kubectl get nodes
+  kubectl get nodes 2>/dev/null || k3s kubectl get nodes
 }
 
 # Install Helm if not present

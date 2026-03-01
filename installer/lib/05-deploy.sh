@@ -40,13 +40,36 @@ print(tags[0] if tags else 'latest')
 deploy_software_factory() {
   log_step "Deploying Software Factory core services..."
 
+  # Validate cluster access
+  if ! validate_kubectl; then
+    log_error "Cannot reach Kubernetes cluster — aborting deployment"
+    return 1
+  fi
+
   # Resolve image tag (auto-detects if :latest doesn't exist on Docker Hub)
   local image_tag
   image_tag=$(resolve_image_tag "$SF_DOCKER_USERNAME")
   log_info "Using image tag: $image_tag"
 
+  # Verify images exist on Docker Hub before deploying
+  log_step "Checking image availability..."
+  local images_ok=true
+  for img in nexus-api nexus-console; do
+    local check_url="https://hub.docker.com/v2/repositories/${SF_DOCKER_USERNAME}/${img}/tags/${image_tag}/"
+    if curl -sf --max-time 8 "$check_url" &>/dev/null; then
+      log_info "Image found: ${SF_DOCKER_USERNAME}/${img}:${image_tag}"
+    else
+      log_warn "Image not found: ${SF_DOCKER_USERNAME}/${img}:${image_tag}"
+      images_ok=false
+    fi
+  done
+  if [ "$images_ok" = false ]; then
+    log_warn "Some images not found on Docker Hub — pods may fail to start (ImagePullBackOff)"
+    log_warn "Ensure images are pushed or set SF_DOCKER_USERNAME and SF_IMAGE_TAG correctly"
+  fi
+
   # Create prod namespace if it doesn't exist
-  kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f -
+  kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
 
   # Docker Hub pull secret (only if credentials are provided)
   local pull_secret_block=""
@@ -145,8 +168,12 @@ spec:
       storage: 5Gi
 EOF
 
-  wait_for "MongoDB" "kubectl -n prod get pod -l app=datastore -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null | grep -q true" 120
-  log_info "MongoDB deployed"
+  if ! wait_for "MongoDB" "kubectl -n prod get pod -l app=datastore -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null | grep -q true" 120; then
+    log_warn "MongoDB is not ready yet — it may still be pulling the image"
+    log_warn "Check status: kubectl -n prod get pods -l app=datastore"
+  else
+    log_info "MongoDB deployed"
+  fi
 
   # --------------------------------------------------
   # 2. nexus-api (backend)
@@ -344,8 +371,18 @@ EOF
   log_info "Ingress routes configured"
 
   # Save mongo URI for post-install
-  echo "SF_MONGODB_URI=\"${mongo_uri}\"" >> "$SF_CONFIG"
-  echo "SF_MONGO_PASSWORD=\"${mongo_password}\"" >> "$SF_CONFIG"
+  if [ -n "${SF_CONFIG:-}" ] && [ -d "$(dirname "$SF_CONFIG")" ]; then
+    grep -q "SF_MONGODB_URI" "$SF_CONFIG" 2>/dev/null || echo "SF_MONGODB_URI=\"${mongo_uri}\"" >> "$SF_CONFIG"
+    grep -q "SF_MONGO_PASSWORD" "$SF_CONFIG" 2>/dev/null || echo "SF_MONGO_PASSWORD=\"${mongo_password}\"" >> "$SF_CONFIG"
+  fi
+
+  # Print deployment summary
+  echo ""
+  log_info "Deployment summary:"
+  log_info "  MongoDB:        datastore.prod.svc.cluster.local:27017"
+  log_info "  nexus-api:      ${SF_DOCKER_USERNAME}/nexus-api:${image_tag}"
+  log_info "  nexus-console:  ${SF_DOCKER_USERNAME}/nexus-console:${image_tag}"
+  kubectl -n prod get pods 2>/dev/null || true
 }
 
 # Helper: create an Ingress resource

@@ -106,3 +106,68 @@ generate_password() {
   local length="${1:-16}"
   openssl rand -base64 "$length" | tr -dc 'a-zA-Z0-9' | head -c "$length"
 }
+
+# Run a command with validation — logs failure but does NOT exit on error.
+# Returns the command's exit code so the caller can decide what to do.
+# Usage: safe_run "description" command args...
+safe_run() {
+  local desc="$1"
+  shift
+  log_step "$desc"
+  if "$@" 2>&1; then
+    return 0
+  else
+    local rc=$?
+    log_warn "$desc — failed (exit code $rc)"
+    return $rc
+  fi
+}
+
+# Validate that kubectl can talk to the cluster
+validate_kubectl() {
+  if kubectl cluster-info &>/dev/null; then
+    return 0
+  elif k3s kubectl cluster-info &>/dev/null; then
+    # kubectl has stale config but k3s kubectl works — fix kubeconfig
+    log_warn "kubectl has stale config — refreshing kubeconfig..."
+    if [ -f /etc/rancher/k3s/k3s.yaml ]; then
+      mkdir -p "$HOME/.kube"
+      sudo cp /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"
+      sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
+      chmod 600 "$HOME/.kube/config"
+    fi
+    # Create symlink if kubectl doesn't exist
+    if ! command -v kubectl &>/dev/null; then
+      sudo ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl 2>/dev/null || true
+    fi
+    return 0
+  else
+    log_error "Cannot reach Kubernetes API — is K3s running?"
+    log_error "Try: sudo systemctl start k3s"
+    return 1
+  fi
+}
+
+# Retry a command N times with a delay between attempts
+# Usage: retry 3 5 "description" command args...
+retry() {
+  local max_attempts="$1"
+  local delay="$2"
+  local desc="$3"
+  shift 3
+  local attempt=1
+
+  while [ $attempt -le $max_attempts ]; do
+    if "$@" 2>/dev/null; then
+      return 0
+    fi
+    if [ $attempt -lt $max_attempts ]; then
+      log_warn "$desc — attempt $attempt/$max_attempts failed, retrying in ${delay}s..."
+      sleep "$delay"
+    fi
+    attempt=$((attempt + 1))
+  done
+
+  log_error "$desc — all $max_attempts attempts failed"
+  return 1
+}
