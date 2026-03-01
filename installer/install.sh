@@ -8,6 +8,8 @@
 #   curl -sSL https://get.softwarefactory.dev | bash
 #   OR
 #   git clone ... && cd installer && bash install.sh
+#   OR (non-interactive with config file):
+#   bash install.sh --config config.env
 #
 # Modes:
 #   local  — Everything runs on this machine. Apps on localhost.
@@ -43,6 +45,20 @@ done
 # MAIN
 # ==============================================================================
 
+# Parse CLI arguments
+SF_CONFIG_FILE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --config)
+      SF_CONFIG_FILE="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
 main() {
   mkdir -p "$SF_HOME"
   exec > >(tee -a "$SF_LOG") 2>&1
@@ -61,7 +77,28 @@ main() {
 
   # Phase 2: Mode selection + configuration wizard
   log_section "Configuration"
-  if [ -f "$SF_CONFIG" ]; then
+
+  if [ -n "$SF_CONFIG_FILE" ]; then
+    # Non-interactive mode: use provided config file
+    if [ ! -f "$SF_CONFIG_FILE" ]; then
+      log_error "Config file not found: $SF_CONFIG_FILE"
+      exit 1
+    fi
+    log_info "Using config file: $SF_CONFIG_FILE"
+    cp "$SF_CONFIG_FILE" "$SF_CONFIG"
+    chmod 600 "$SF_CONFIG"
+
+    # Source and fill in auto-generated values if missing
+    source "$SF_CONFIG"
+    if [ -z "$SF_ADMIN_PASSWORD" ]; then
+      SF_ADMIN_PASSWORD="$(generate_password 12)"
+      echo "SF_ADMIN_PASSWORD=\"${SF_ADMIN_PASSWORD}\"" >> "$SF_CONFIG"
+    fi
+    if ! grep -q "SF_ARGOCD_PASSWORD" "$SF_CONFIG"; then
+      SF_ARGOCD_PASSWORD="$(generate_password 16)"
+      echo "SF_ARGOCD_PASSWORD=\"${SF_ARGOCD_PASSWORD}\"" >> "$SF_CONFIG"
+    fi
+  elif [ -f "$SF_CONFIG" ]; then
     log_info "Found existing config at $SF_CONFIG"
     prompt_yn "Use existing configuration?" && source "$SF_CONFIG" || run_wizard
   else

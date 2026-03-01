@@ -15,19 +15,48 @@ install_k3s() {
 
   # Case 2: K3s binary exists but service is stopped (e.g. previous test install)
   if command -v k3s &>/dev/null; then
-    log_info "K3s binary found but not running — starting service..."
-    sudo systemctl start k3s 2>/dev/null || true
-    wait_for "K3s API server" "k3s kubectl get nodes" 60
-    # Set up kubeconfig if missing
-    if [ ! -f "$HOME/.kube/config" ]; then
+    log_info "K3s binary found but not running — attempting restart..."
+
+    # WSL2: update config before restart (may have new cgroup workarounds)
+    if [ "$SF_IS_WSL" = true ] && [ -d /etc/rancher/k3s ]; then
+      cat <<WSLCONF | sudo tee /etc/rancher/k3s/config.yaml >/dev/null
+snapshotter: native
+protect-kernel-defaults: false
+disable:
+  - traefik
+kubelet-arg:
+  - "eviction-hard=nodefs.available<1%,imagefs.available<1%"
+  - "image-gc-high-threshold=100"
+  - "image-gc-low-threshold=80"
+  - "cgroups-per-qos=false"
+  - "enforce-node-allocatable="
+tls-san:
+  - 127.0.0.1
+  - localhost
+WSLCONF
+      log_info "Updated K3s config for WSL2 compatibility"
+    fi
+
+    # Regenerate kubeconfig from fresh K3s certs (avoids stale x509 errors)
+    if [ -f /etc/rancher/k3s/k3s.yaml ]; then
       mkdir -p "$HOME/.kube"
       sudo cp /etc/rancher/k3s/k3s.yaml "$HOME/.kube/config"
       sudo chown "$(id -u):$(id -g)" "$HOME/.kube/config"
       chmod 600 "$HOME/.kube/config"
     fi
-    log_info "K3s started"
-    kubectl get nodes
-    return 0
+
+    sudo systemctl start k3s 2>/dev/null || true
+
+    # If start failed, try clean reinstall
+    if ! wait_for "K3s API server" "k3s kubectl get nodes" 30 2>/dev/null; then
+      log_warn "K3s failed to start — performing clean reinstall..."
+      /usr/local/bin/k3s-uninstall.sh 2>/dev/null || true
+      rm -f "$HOME/.kube/config"
+    else
+      log_info "K3s started"
+      kubectl get nodes
+      return 0
+    fi
   fi
 
   log_step "Installing K3s..."
@@ -51,20 +80,30 @@ install_k3s() {
 
     # Pre-create K3s config for WSL2:
     # - native snapshotter: fixes InvalidDiskCapacity kubelet crash on WSL2
+    # - protect-kernel-defaults false: skips strict sysctl validation
     # - relaxed eviction: WSL2 disk reporting can be inaccurate
+    # - cgroups-per-qos false + enforce-node-allocatable empty: avoids
+    #   "wrong number of fields" cgroup parsing error on WSL2 kernels
     sudo mkdir -p /etc/rancher/k3s
     cat <<WSLCONF | sudo tee /etc/rancher/k3s/config.yaml >/dev/null
 snapshotter: native
+protect-kernel-defaults: false
 disable:
   - traefik
 kubelet-arg:
   - "eviction-hard=nodefs.available<1%,imagefs.available<1%"
   - "image-gc-high-threshold=100"
   - "image-gc-low-threshold=80"
+  - "cgroups-per-qos=false"
+  - "enforce-node-allocatable="
 tls-san:
   - 127.0.0.1
   - localhost
 WSLCONF
+
+    # Pin K3s version on WSL2 for cgroup compatibility (v1.31+ handles 7-field /proc/cgroups)
+    export INSTALL_K3S_VERSION="v1.31.4+k3s1"
+    log_info "Pinning K3s to ${INSTALL_K3S_VERSION} for WSL2 compatibility"
   fi
 
   # Install K3s
