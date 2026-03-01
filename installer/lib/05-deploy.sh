@@ -22,7 +22,8 @@ resolve_image_tag() {
   fi
 
   # Fetch the most recent prod-* tag from Docker Hub API
-  log_warn ":latest tag not found on Docker Hub — fetching most recent prod-* tag..."
+  # NOTE: log to stderr (>&2) so logs don't leak into $(resolve_image_tag) capture
+  log_warn ":latest tag not found on Docker Hub — fetching most recent prod-* tag..." >&2
   local api_url="https://hub.docker.com/v2/repositories/${docker_user}/nexus-api/tags/?page_size=25&ordering=last_updated"
   local latest_tag
   latest_tag=$(curl -sf --max-time 10 "$api_url" 2>/dev/null \
@@ -33,7 +34,7 @@ tags = [r['name'] for r in data.get('results', []) if r['name'].startswith('prod
 print(tags[0] if tags else 'latest')
 " 2>/dev/null || echo "latest")
 
-  log_info "Auto-detected tag: $latest_tag"
+  log_info "Auto-detected tag: $latest_tag" >&2
   echo "$latest_tag"
 }
 
@@ -103,6 +104,26 @@ deploy_software_factory() {
 
   local mongo_uri="mongodb://admin:${mongo_password}@datastore.prod.svc.cluster.local:27017/forge?authSource=admin"
 
+  # PVC: create only if it doesn't exist (PVCs are immutable once bound)
+  if ! kubectl -n prod get pvc datastore-data &>/dev/null; then
+    kubectl apply -f - <<EOF
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: datastore-data
+  namespace: prod
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+EOF
+    log_info "PVC datastore-data created"
+  else
+    log_info "PVC datastore-data already exists — skipping"
+  fi
+
+  # Deployment + Service (idempotent via kubectl apply)
   kubectl apply -f - <<EOF
 apiVersion: apps/v1
 kind: Deployment
@@ -155,17 +176,6 @@ spec:
   ports:
   - port: 27017
     targetPort: 27017
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: datastore-data
-  namespace: prod
-spec:
-  accessModes: [ReadWriteOnce]
-  resources:
-    requests:
-      storage: 5Gi
 EOF
 
   if ! wait_for "MongoDB" "kubectl -n prod get pod -l app=datastore -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null | grep -q true" 120; then
