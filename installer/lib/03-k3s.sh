@@ -5,7 +5,7 @@
 
 install_k3s() {
   # Case 1: K3s installed and API is up — nothing to do
-  if command -v k3s &>/dev/null && k3s kubectl get nodes &>/dev/null 2>&1; then
+  if command -v k3s &>/dev/null && sudo k3s kubectl get nodes &>/dev/null 2>&1; then
     log_info "K3s already installed and running"
     local version
     version=$(k3s --version 2>/dev/null | head -1)
@@ -48,7 +48,7 @@ WSLCONF
     sudo systemctl start k3s 2>/dev/null || true
 
     # If start failed, try clean reinstall
-    if ! wait_for "K3s API server" "k3s kubectl get nodes" 30 2>/dev/null; then
+    if ! wait_for "K3s API server" "sudo k3s kubectl get nodes" 30 2>/dev/null; then
       log_warn "K3s failed to start — performing clean reinstall..."
       /usr/local/bin/k3s-uninstall.sh 2>/dev/null || true
       rm -f "$HOME/.kube/config"
@@ -117,7 +117,7 @@ WSLCONF
   fi
 
   # Wait for K3s to be ready
-  wait_for "K3s API server" "k3s kubectl get nodes" 60
+  wait_for "K3s API server" "sudo k3s kubectl get nodes" 60
 
   # Set up kubeconfig
   mkdir -p "$HOME/.kube"
