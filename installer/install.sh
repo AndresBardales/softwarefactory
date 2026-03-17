@@ -2,19 +2,19 @@
 # ==============================================================================
 # Software Factory — Installer
 # ==============================================================================
-# Installs a complete personal PaaS on any Linux machine (bare metal, VM, WSL2).
+# Launches a web-based installer dashboard where you can monitor each step,
+# enter credentials interactively, retry failures, and launch the platform.
 #
 # Usage:
-#   bash install.sh                        # Zero-config: installs + opens web wizard
-#   bash install.sh --config config.env    # Non-interactive: full install from config file
-#
-# The web wizard at localhost:30080/setup handles ALL configuration.
+#   bash install.sh              # Launches installer dashboard at localhost:3000
+#   bash install.sh --headless   # Legacy headless mode (runs all steps in terminal)
 # ==============================================================================
 
 # Auto-fix Windows line endings (CRLF → LF) if running from a Windows filesystem
 if head -1 "$0" | grep -q $'\r'; then
   echo "Fixing Windows line endings..."
   find "$(dirname "$0")" -name "*.sh" -exec sed -i 's/\r//' {} +
+  find "$(dirname "$0")" -name "*.py" -exec sed -i 's/\r//' {} +
   exec bash "$0" "$@"
 fi
 
@@ -23,167 +23,11 @@ set -euo pipefail
 INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SF_VERSION="1.0.0"
 SF_HOME="${SF_HOME:-$HOME/.software-factory}"
-SF_CONFIG="$SF_HOME/config.env"
-SF_LOG="$SF_HOME/install.log"
-
-# Default platform image registry (public images for bootstrap)
-SF_DEFAULT_REGISTRY="${SF_DEFAULT_REGISTRY:-andresbardalescalva}"
+INSTALLER_PORT="${INSTALLER_PORT:-3000}"
 
 # Colors
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'; BOLD='\033[1m'
-
-# Source library functions
-for lib in "$INSTALLER_DIR/lib/"*.sh; do
-  [ -f "$lib" ] && source "$lib"
-done
-
-# ==============================================================================
-# MAIN
-# ==============================================================================
-
-# Parse CLI arguments
-SF_CONFIG_FILE=""
-SF_BOOTSTRAP=false
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --config)
-      SF_CONFIG_FILE="$2"
-      shift 2
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-
-main() {
-  mkdir -p "$SF_HOME"
-  exec > >(tee -a "$SF_LOG") 2>&1
-
-  print_banner
-  log_info "Software Factory Installer v${SF_VERSION}"
-  log_info "Log file: $SF_LOG"
-  echo ""
-
-  # Phase 1: Pre-flight checks
-  log_section "Pre-flight Checks"
-  check_os
-  check_resources
-  check_dependencies
-  echo ""
-
-  # Phase 2: Configuration — pick the mode
-  log_section "Configuration"
-
-  if [ -n "$SF_CONFIG_FILE" ]; then
-    # ── Mode A: Full config file ──────────────────────────────────────────
-    if [ ! -f "$SF_CONFIG_FILE" ]; then
-      log_error "Config file not found: $SF_CONFIG_FILE"
-      exit 1
-    fi
-    log_info "Using config file: $SF_CONFIG_FILE"
-    cp "$SF_CONFIG_FILE" "$SF_CONFIG"
-    chmod 600 "$SF_CONFIG"
-
-    source "$SF_CONFIG"
-    # Fill auto-generated values
-    if [ -z "${SF_ADMIN_PASSWORD:-}" ]; then
-      SF_ADMIN_PASSWORD="$(generate_password 12)"
-      echo "SF_ADMIN_PASSWORD=\"${SF_ADMIN_PASSWORD}\"" >> "$SF_CONFIG"
-    fi
-    if ! grep -q "SF_ARGOCD_PASSWORD" "$SF_CONFIG" 2>/dev/null; then
-      SF_ARGOCD_PASSWORD="$(generate_password 16)"
-      echo "SF_ARGOCD_PASSWORD=\"${SF_ARGOCD_PASSWORD}\"" >> "$SF_CONFIG"
-    fi
-
-  elif [ -f "$SF_CONFIG" ]; then
-    # ── Mode B: Existing config from previous run ─────────────────────────
-    log_info "Found existing config at $SF_CONFIG"
-    if prompt_yn "Use existing configuration?"; then
-      source "$SF_CONFIG"
-    else
-      SF_BOOTSTRAP=true
-    fi
-
-  else
-    # ── Mode C: Zero-config bootstrap → web wizard ────────────────────────
-    SF_BOOTSTRAP=true
-  fi
-
-  if [ "$SF_BOOTSTRAP" = true ]; then
-    log_info "Bootstrap mode — installing platform core"
-    log_info "All configuration will be done via the web wizard after install"
-
-    SF_MODE="local"
-    SF_DOMAIN="localhost"
-    SF_DOCKER_USERNAME="${SF_DEFAULT_REGISTRY}"
-    SF_ENABLE_TLS=false
-    SF_ADMIN_USER=""
-    SF_ADMIN_PASSWORD=""
-    SF_ARGOCD_PASSWORD=""
-    SF_GIT_USERNAME=""
-    SF_GIT_TOKEN=""
-    SF_GIT_PROVIDER="bitbucket"
-    SF_BITBUCKET_WORKSPACE=""
-    SF_DOCKER_TOKEN=""
-    SF_TAILSCALE_ENABLED=false
-    SF_TUNNEL_PROVIDER=""
-    SF_CLOUDFLARE_TOKEN=""
-    SF_CLOUDFLARE_ACCOUNT_ID=""
-
-    # Minimal config file
-    cat > "$SF_CONFIG" << CONF
-SF_MODE="local"
-SF_DOMAIN="localhost"
-SF_DOCKER_USERNAME="${SF_DOCKER_USERNAME}"
-SF_ENABLE_TLS=false
-CONF
-    chmod 600 "$SF_CONFIG"
-  fi
-
-  source "$SF_CONFIG"
-  echo ""
-
-  # Phase 3: Install K3s
-  log_section "Installing K3s"
-  install_k3s
-  echo ""
-
-  # Phase 4: Install core infrastructure
-  log_section "Installing Core Infrastructure"
-  install_core_infra
-  echo ""
-
-  # Phase 5: Deploy Software Factory
-  log_section "Deploying Software Factory"
-  deploy_software_factory
-  echo ""
-
-  # Phase 6: Cloudflare Tunnel (only if configured)
-  if [ -n "${SF_TUNNEL_PROVIDER:-}" ]; then
-    setup_cloudflare_tunnel
-    echo ""
-  fi
-
-  # Phase 7: Post-installation setup (only if full config)
-  if [ "$SF_BOOTSTRAP" != true ]; then
-    log_section "Post-Installation"
-    run_post_install
-    echo ""
-
-    log_section "Health Check"
-    wait_for_healthy
-    echo ""
-  fi
-
-  # Done
-  if [ "$SF_BOOTSTRAP" = true ]; then
-    print_wizard_ready
-  else
-    print_complete
-  fi
-}
 
 # ==============================================================================
 # BANNER
@@ -214,67 +58,138 @@ BANNER
   echo ""
 }
 
-print_wizard_ready() {
-  local url="http://localhost:30080"
+# ==============================================================================
+# HEADLESS MODE (legacy — runs everything in terminal)
+# ==============================================================================
 
-  echo -e "${GREEN}"
-  cat << EOF
-
-  ============================================================
-   Platform is ready! Open the setup wizard to configure:
-  ============================================================
-
-   Setup Wizard:  ${url}/setup
-
-   Open this URL in your browser to:
-    1. Create your admin account
-    2. Choose mode (local / hybrid)
-    3. Connect Git, Docker Hub
-    4. Configure public access (Cloudflare Tunnel)
-
-  ============================================================
-EOF
-  echo -e "${NC}"
-
-  # Try to open browser automatically
-  if command -v xdg-open &>/dev/null; then
-    xdg-open "${url}/setup" 2>/dev/null &
-  elif command -v wslview &>/dev/null; then
-    wslview "${url}/setup" 2>/dev/null &
-  elif command -v sensible-browser &>/dev/null; then
-    sensible-browser "${url}/setup" 2>/dev/null &
-  fi
+run_headless() {
+  echo -e "${YELLOW}[headless]${NC} Running all steps in terminal mode..."
+  echo ""
+  for step_script in "$INSTALLER_DIR/steps/"*.sh; do
+    [ -f "$step_script" ] || continue
+    step_name="$(basename "$step_script" .sh)"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BOLD}  Step: ${step_name}${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    if bash "$step_script"; then
+      echo -e "${GREEN}[✓]${NC} ${step_name} completed"
+    else
+      echo -e "${RED}[✗]${NC} ${step_name} failed"
+      echo ""
+      echo "Fix the issue and re-run: bash install.sh --headless"
+      exit 1
+    fi
+    echo ""
+  done
+  echo -e "${GREEN}${BOLD}Installation complete!${NC}"
+  echo -e "  Dashboard: ${CYAN}http://localhost:30080${NC}"
 }
 
-print_complete() {
-  local CONSOLE_URL="http://localhost:30080"
-  [ "${SF_MODE:-local}" = "cloud" ] || [ "${SF_MODE:-local}" = "hybrid" ] && CONSOLE_URL="https://nexus-console.${SF_DOMAIN}"
+# ==============================================================================
+# DASHBOARD MODE (default — launches web UI)
+# ==============================================================================
 
-  echo -e "${GREEN}"
-  cat << EOF
+run_dashboard() {
+  # 1. Check Python3
+  if ! command -v python3 &>/dev/null; then
+    echo -e "${YELLOW}[!]${NC} Python3 is required for the installer dashboard."
+    echo "    Installing python3..."
+    sudo apt-get update -qq && sudo apt-get install -y python3 || {
+      echo -e "${RED}[✗]${NC} Failed to install Python3. Install manually: sudo apt install python3"
+      exit 1
+    }
+  fi
 
-  ============================================================
-   Installation complete!
-  ============================================================
+  # 2. Generate setup token
+  local SF_SETUP_TOKEN
+  if command -v openssl &>/dev/null; then
+    SF_SETUP_TOKEN="$(openssl rand -hex 12)"
+  else
+    SF_SETUP_TOKEN="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' | head -c 24)"
+  fi
 
-   Dashboard:  ${CONSOLE_URL}
-   Username:   ${SF_ADMIN_USER:-admin}
-   Password:   ${SF_ADMIN_PASSWORD:-<set in web wizard>}
+  # 3. Create config directory
+  mkdir -p "$SF_HOME"
 
-   Quick commands:
-     sf status      — Check cluster health
-     sf apps        — List deployed apps
-     sf logs <app>  — View app logs
-     sf upgrade     — Upgrade Software Factory
-     sf help        — All available commands
-
-  ============================================================
+  # Minimal config (no hardcoded Docker user — the UI form provides it)
+  cat > "$SF_HOME/config.env" << EOF
+SF_MODE="local"
+SF_DOMAIN="localhost"
+SF_ENABLE_TLS=false
+SF_SETUP_TOKEN="${SF_SETUP_TOKEN}"
 EOF
-  echo -e "${NC}"
+  chmod 600 "$SF_HOME/config.env"
+
+  # Installer env (for server.py)
+  cat > "$SF_HOME/installer.env" << EOF
+SF_SETUP_TOKEN=${SF_SETUP_TOKEN}
+INSTALLER_DIR=${INSTALLER_DIR}
+INSTALLER_PORT=${INSTALLER_PORT}
+EOF
+
+  # 4. Build the URL
+  local PUBLIC_IP
+  if command -v curl &>/dev/null; then
+    PUBLIC_IP=$(curl -s https://api.ipify.org 2>/dev/null || echo "localhost")
+  else
+    PUBLIC_IP="localhost"
+  fi
+  local DASHBOARD_URL="http://${PUBLIC_IP}:${INSTALLER_PORT}?token=${SF_SETUP_TOKEN}"
+
+  # 5. Print access info
+  echo ""
+  echo -e "  ${BLUE}┌──────────────────────────────────────────────────────────┐${NC}"
+  echo -e "  ${BLUE}│${NC}                                                          ${BLUE}│${NC}"
+  echo -e "  ${BLUE}│${NC}   ${BOLD}Installer Dashboard${NC}                                    ${BLUE}│${NC}"
+  echo -e "  ${BLUE}│${NC}                                                          ${BLUE}│${NC}"
+  echo -e "  ${BLUE}│${NC}   ${CYAN}http://${PUBLIC_IP}:${INSTALLER_PORT}${NC}"
+  echo -e "  ${BLUE}│${NC}   Token: ${YELLOW}${SF_SETUP_TOKEN}${NC}"
+  echo -e "  ${BLUE}│${NC}                                                          ${BLUE}│${NC}"
+  echo -e "  ${BLUE}│${NC}   Open the URL in your browser and use the token.       ${BLUE}│${NC}"
+  echo -e "  ${BLUE}│${NC}   Press ${BOLD}Ctrl+C${NC} to stop the installer.                    ${BLUE}│${NC}"
+  echo -e "  ${BLUE}│${NC}                                                          ${BLUE}│${NC}"
+  echo -e "  ${BLUE}└──────────────────────────────────────────────────────────┘${NC}"
+  echo ""
+
+  # 6. Try to open browser
+  if command -v wslview &>/dev/null; then
+    wslview "$DASHBOARD_URL" 2>/dev/null &
+  elif command -v xdg-open &>/dev/null; then
+    xdg-open "$DASHBOARD_URL" 2>/dev/null &
+  elif command -v sensible-browser &>/dev/null; then
+    sensible-browser "$DASHBOARD_URL" 2>/dev/null &
+  fi
+
+  # 7. Launch server
+  export SF_SETUP_TOKEN
+  export INSTALLER_PORT
+  exec python3 "$INSTALLER_DIR/server.py"
 }
 
 # ==============================================================================
 # Entry point
 # ==============================================================================
+
+main() {
+  print_banner
+
+  echo -e "${GREEN}[✓]${NC} Software Factory Installer v${SF_VERSION}"
+  echo -e "${GREEN}[✓]${NC} Log file: $SF_HOME/install.log"
+  echo ""
+
+  # Parse args
+  local mode="dashboard"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --headless) mode="headless"; shift ;;
+      *) shift ;;
+    esac
+  done
+
+  case "$mode" in
+    headless)  run_headless ;;
+    dashboard) run_dashboard ;;
+  esac
+}
 
 main "$@"

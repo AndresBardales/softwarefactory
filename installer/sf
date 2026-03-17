@@ -171,7 +171,12 @@ cmd_upgrade() {
   echo ""
 
   # Pull latest images
-  local images=("${SF_DOCKER_USERNAME:-andresbardalescalva}/nexus-api:latest" "${SF_DOCKER_USERNAME:-andresbardalescalva}/nexus-console:latest")
+  local docker_user="${SF_DOCKER_USER:-${SF_DOCKER_USERNAME:-}}"
+  if [ -z "$docker_user" ]; then
+    echo -e "  ${RED}[✗]${NC} No Docker Hub username configured. Run 'sf config --set SF_DOCKER_USER=yourusername'"
+    return 1
+  fi
+  local images=("${docker_user}/nexus-api:latest" "${docker_user}/nexus-console:latest")
 
   for img in "${images[@]}"; do
     echo -e "  ${BLUE}[→]${NC} Pulling $img..."

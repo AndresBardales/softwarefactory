@@ -7,9 +7,13 @@ run_post_install() {
   log_step "Running post-installation setup..."
 
   # Wait for nexus-api to be ready
-  wait_for "nexus-api pod" \
+  if ! wait_for "nexus-api pod" \
     "kubectl -n prod get pod -l app=nexus-api -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null | grep -q true" \
-    180
+    180; then
+    log_warn "nexus-api not ready after 180s — skipping post-install seed"
+    log_warn "The web wizard will handle configuration instead"
+    return 0
+  fi
 
   # Get nexus-api pod IP for direct communication
   local api_ip
@@ -18,22 +22,11 @@ run_post_install() {
 
   log_step "Seeding platform configuration..."
 
-  # Canonical git namespace resolution used by nexus-api runtime.
-  local git_provider="${SF_GIT_PROVIDER:-github}"
-  local git_workspace="${SF_GIT_WORKSPACE:-${SF_BITBUCKET_WORKSPACE:-${SF_GIT_USERNAME:-}}}"
-  local github_org=""
-  local bitbucket_workspace=""
-  if [ "$git_provider" = "github" ]; then
-    github_org="$git_workspace"
-  elif [ "$git_provider" = "bitbucket" ]; then
-    bitbucket_workspace="$git_workspace"
-  fi
-
   # 1. Create admin user (bootstrap)
   local token
   token=$(curl -sf --max-time 10 -X POST "${api_url}/api/v1/auth/signup" \
     -H "Content-Type: application/json" \
-    -d "{\"username\":\"${SF_ADMIN_USER}\",\"email\":\"${SF_GIT_EMAIL}\",\"password\":\"${SF_ADMIN_PASSWORD}\"}" \
+    -d "{\"username\":\"${SF_ADMIN_USER}\",\"email\":\"${SF_GIT_USER:-admin@localhost}\",\"password\":\"${SF_ADMIN_PASSWORD}\"}" \
     2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || echo "")
 
   # If signup fails (user exists), try login
@@ -64,17 +57,18 @@ run_post_install() {
   "argocd_url": "${argocd_url}",
   "argocd_username": "admin",
   "argocd_password": "${SF_ARGOCD_PASSWORD:-}",
-  "git_provider": "${git_provider}",
   "git_token": "${SF_GIT_TOKEN}",
-  "git_username": "${SF_GIT_USERNAME}",
-  "git_workspace": "${git_workspace}",
-  "github_org": "${github_org}",
-  "bitbucket_email": "${SF_GIT_EMAIL}",
-  "bitbucket_workspace": "${bitbucket_workspace}",
+  "git_username": "${SF_GIT_USER}",
+  "bitbucket_email": "${SF_GIT_USER}",
+  "bitbucket_workspace": "${SF_BITBUCKET_WORKSPACE:-}",
   "dockerhub_username": "${SF_DOCKER_USERNAME}",
   "dockerhub_token": "${SF_DOCKER_TOKEN}",
   "tailscale_dns_suffix": "${SF_TAILSCALE_DNS_SUFFIX:-}",
-  "sf_mode": "${SF_MODE}"
+  "sf_mode": "${SF_MODE}",
+  "git_provider": "${SF_GIT_PROVIDER:-bitbucket}",
+  "github_org": "${SF_GITHUB_ORG:-${SF_GIT_USER}}",
+  "github_token": "${SF_GIT_TOKEN}",
+  "github_is_org": false
 }
 SEED
 )

@@ -4,6 +4,23 @@ Your Personal PaaS. Deploy your own cloud platform in minutes.
 
 Run apps, databases, and automations — locally, in the cloud, or hybrid.
 
+## How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  1. INSTALLER         bash install.sh                           │
+│     Web dashboard at :3000 with secure token                    │
+│     ↓ Installs K3s, MongoDB, API, Console, health checks       │
+├─────────────────────────────────────────────────────────────────┤
+│  2. SETUP WIZARD      http://<IP>:30080/setup                   │
+│     Create admin account, connect Git & Docker Hub              │
+│     ↓ Platform is now configured and ready                      │
+├─────────────────────────────────────────────────────────────────┤
+│  3. NEXUS CONSOLE     http://<IP>:30080                         │
+│     Deploy apps from templates, manage databases & services     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
 ## Requirements
 
 - **OS**: Ubuntu 22.04+ (native Linux, WSL2, or VM)
@@ -20,7 +37,12 @@ cd softwarefactory
 bash install.sh
 ```
 
-The interactive wizard will guide you through mode selection and configuration.
+The installer launches a **web dashboard** at `http://<your-ip>:3000`.  
+A **setup token** is printed in the terminal — paste it in the browser to begin.
+
+11 automated steps run in sequence: system check → dependencies → K3s → credentials → core services → source repos → database → platform API → platform console → health check → finalize.
+
+When complete, open `http://<your-ip>:30080/setup` to create your admin account and connect your Git and Docker credentials.
 
 ## Install Modes
 

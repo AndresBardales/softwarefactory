@@ -1,0 +1,1152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Software Factory — Installer wizard</title>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* --- Theme --- */
+[data-theme="studio"] {
+  --bg-base:#09090b; --bg-surface:#111113; --bg-elevated:#18181b; --bg-hover:#27272a;
+  --border-subtle:rgba(255,255,255,0.08); --border-active:rgba(255,255,255,0.2);
+  --text-primary:#f4f4f5; --text-secondary:#a1a1aa; --text-muted:#71717a;
+  --accent:#3b82f6; --accent-dim:rgba(59,130,246,0.15); --accent-glow:rgba(59,130,246,0.2);
+  --ok:#10b981; --ok-dim:rgba(16,185,129,0.15);
+  --danger:#ef4444; --danger-dim:rgba(239,68,68,0.15); 
+  --warn:#f59e0b; --info:#6366f1;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:'Inter',system-ui,sans-serif;
+  background:var(--bg-base); color:var(--text-primary);
+  overflow:hidden; height:100vh; -webkit-font-smoothing:antialiased;
+}
+::selection { background:var(--accent-dim); color:var(--accent); }
+
+/* --- Layout --- */
+.layout { display:flex; height:100vh; }
+.sidebar {
+  width:280px; background:var(--bg-surface); border-right:1px solid var(--border-subtle);
+  display:flex; flex-direction:column; z-index:10; position:relative; flex-shrink:0;
+}
+.main { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; background:var(--bg-base); }
+.topbar {
+  height:60px; border-bottom:1px solid var(--border-subtle); display:flex; align-items:center;
+  padding:0 24px; justify-content:space-between; background:var(--bg-base); flex-shrink:0;
+}
+.content { flex:1; overflow-y:auto; padding:40px; display:flex; flex-direction:column; }
+
+/* --- Components --- */
+.surface-elevated { background:var(--bg-elevated); border:1px solid var(--border-subtle); border-radius:12px; }
+.input {
+  width:100%; padding:12px 14px; background:var(--bg-base); border:1px solid var(--border-subtle);
+  border-radius:8px; color:var(--text-primary); font-size:13px; outline:none; transition:all .2s;
+  font-family:'Inter', sans-serif;
+}
+.input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-dim); }
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 24px;
+  border:none; border-radius:8px; font-weight:600; font-size:13px; cursor:pointer; transition:all .2s;
+  font-family:'Inter', sans-serif;
+}
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { filter:brightness(1.1); box-shadow:0 4px 12px var(--accent-glow); }
+.btn-ghost { background:transparent; color:var(--text-secondary); border:1px solid var(--border-subtle); }
+.btn-ghost:hover { background:var(--bg-hover); color:var(--text-primary); }
+.btn-danger { background:var(--danger-dim); color:var(--danger); border:1px solid rgba(239,68,68,0.2); }
+.label { font-size:11px; font-weight:600; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px; display:block; letter-spacing:0.5px;}
+
+/* --- Stepper (Vertical) --- */
+.v-stepper { padding:24px 20px; flex:1; overflow-y:auto; }
+.v-step { display:flex; gap:16px; position:relative; padding-bottom:32px; cursor:pointer; opacity:0.6; transition:opacity .3s;}
+.v-step:last-child { padding-bottom:0; }
+.v-step::after { content:''; position:absolute; left:13px; top:32px; bottom:0; width:2px; background:var(--border-subtle); }
+.v-step:last-child::after { display:none; }
+.v-step.is-past { opacity:1; }
+.v-step.is-past::after { background:var(--accent); }
+.v-step.is-current { opacity:1; }
+.v-step.is-current .v-dot { box-shadow:0 0 0 4px var(--accent-dim); border-color:var(--accent); background:var(--bg-surface); }
+.v-step.is-current .v-title { color:var(--accent); font-weight:600; }
+
+.v-dot {
+  width:28px; height:28px; border-radius:50%; border:2px solid var(--border-subtle);
+  background:var(--bg-surface); display:flex; align-items:center; justify-content:center; z-index:2;
+  font-size:11px; font-weight:600; color:var(--text-muted); transition:all .3s;
+}
+.dot-done { background:var(--accent); border-color:var(--accent); color:#fff; }
+.dot-running { border-color:var(--accent); color:var(--accent); }
+.dot-error { border-color:var(--danger); color:var(--danger); }
+
+.v-text { padding-top:4px; }
+.v-title { font-size:13px; font-weight:500; color:var(--text-primary); margin-bottom:2px; transition:color .3s; }
+.v-desc { font-size:11px; color:var(--text-muted); line-height:1.4; }
+
+/* --- Terminal --- */
+.terminal-wrap { background:#0a0a0c; border-top:1px solid var(--border-subtle); display:flex; flex-direction:column; flex-shrink:0; }
+.resize-handle { height:8px; cursor:row-resize; display:flex; align-items:center; justify-content:center; transition:background .2s; }
+.resize-handle:hover, .resize-handle.active { background:var(--accent-dim); }
+.resize-handle::after { content:''; width:40px; height:3px; border-radius:2px; background:var(--text-muted); opacity:0.4; pointer-events:none; }
+.terminal-header { padding:8px 16px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;}
+.terminal { font-family:'JetBrains Mono',monospace; font-size:12px; line-height:1.6; padding:16px; overflow-y:auto; flex:1; scroll-behavior:smooth; }
+.term-line { white-space:pre-wrap; word-break:break-all; }
+.term-ok{color:#34d399;}.term-err{color:#f87171;}.term-warn{color:#fbbf24;}.term-info{color:#60a5fa;}.term-default{color:#a1a1aa;}
+
+/* Animations & utils */
+@keyframes spin{to{transform:rotate(360deg);}} .spinner{animation:spin .8s linear infinite;}
+.splash { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; text-align:center; max-width:500px; margin:0 auto; }
+.gate { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:var(--bg-base); z-index:100; }
+</style>
+</head>
+<body x-data="installer()" x-init="init()" data-theme="studio">
+
+<!-- GATE -->
+<template x-if="!authenticated">
+  <div class="gate">
+    <div class="surface-elevated" style="width:400px; padding:48px 40px; text-align:center;">
+      <div style="width:48px;height:48px;border-radius:12px;background:var(--accent-dim);display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <h1 style="font-size:20px;font-weight:600;margin-bottom:8px;">Software Factory</h1>
+      <p style="color:var(--text-muted);font-size:13px;margin-bottom:32px;">Input your setup token to begin.</p>
+      
+      <div x-show="!autoAuthenticating">
+        <input type="text" x-model="tokenInput" @keyup.enter="authenticate()" class="input" placeholder="Setup token" style="text-align:center;letter-spacing:1px;margin-bottom:16px;">
+        <button @click="authenticate()" class="btn btn-primary" style="width:100%;">Authenticate</button>
+      </div>
+      <div x-show="autoAuthenticating" style="color:var(--accent);display:flex;align-items:center;justify-content:center;gap:8px;padding:20px;">
+        <svg class="spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>
+        <span>Verifying...</span>
+      </div>
+      <p x-show="authError" style="color:var(--danger);font-size:13px;margin-top:16px;" x-text="authError"></p>
+    </div>
+  </div>
+</template>
+
+<!-- MAIN -->
+<template x-if="authenticated">
+  <div class="layout">
+    
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div style="padding:24px 20px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:12px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;border:1px solid var(--border-active);flex-shrink:0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <div>
+          <h2 style="font-size:14px;font-weight:600;letter-spacing:0.3px;">Installer</h2>
+          <div style="font-size:11px;color:var(--text-muted);" x-text="doneCount + ' of ' + steps.length + ' tasks done'"></div>
+        </div>
+      </div>
+      
+      <div class="v-stepper">
+        <template x-for="(step, i) in steps" :key="step.id">
+          <div class="v-step" :class="{
+              'is-past': i < steps.findIndex(s=>s.id===currentStep?.id),
+              'is-current': currentStep?.id===step.id
+            }" @click="selectStep(step)">
+            <div class="v-dot" :class="'dot-'+step.status">
+              <template x-if="step.status==='pending'"><span x-text="i+1"></span></template>
+              <template x-if="step.status==='running'"><svg class="spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg></template>
+              <template x-if="step.status==='done'||step.status==='skipped'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></template>
+              <template x-if="step.status==='error'"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></template>
+            </div>
+            <div class="v-text">
+              <div class="v-title" x-text="step.title"></div>
+              <div class="v-desc" x-text="step.desc"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- Sidebar bottom actions -->
+      <div style="padding:16px 20px;border-top:1px solid var(--border-subtle);display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
+        <button @click="showResetConfirm=true" class="btn btn-ghost" style="font-size:12px;padding:10px 14px;width:100%;justify-content:center;display:flex;align-items:center;gap:8px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          Reset All Steps
+        </button>
+      </div>
+
+      <!-- Reset All Confirmation Modal -->
+      <template x-if="showResetConfirm">
+        <div style="position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:200;" @click.self="showResetConfirm=false">
+          <div class="surface-elevated" style="width:420px;padding:32px;text-align:center;">
+            <div style="width:56px;height:56px;border-radius:50%;background:rgba(245,158,11,0.1);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;border:2px solid var(--warn);">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2.5" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+            </div>
+            <h3 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#fff;">Reset All Steps?</h3>
+            <p style="color:var(--text-secondary);font-size:13px;line-height:1.6;margin-bottom:24px;">This will mark all steps as <strong style="color:var(--warn);">pending</strong> so the installer runs from step 1 again.<br><br><span style="font-size:12px;color:var(--text-muted);">K3s, pods, and data on the server are NOT deleted. Use "Clean Install" if you want a full wipe.</span></p>
+            <div style="display:flex;gap:12px;justify-content:center;">
+              <button @click="showResetConfirm=false" class="btn btn-ghost" style="flex:1;">Cancel</button>
+              <button @click="executeResetState()" class="btn" style="flex:1;background:var(--warn);color:#000;font-weight:600;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                Yes, Reset All
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- MAIN PANEL -->
+    <div class="main">
+      <div class="topbar">
+        <div style="font-size:13px;color:var(--text-secondary);font-weight:500;" x-text="currentStep ? currentStep.title : 'Overview'"></div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-muted);" x-show="currentStep?.started_at" x-text="'Elapsed: '+stepDuration(currentStep)"></div>
+      </div>
+
+      <div class="content">
+        
+        <!-- Welcome Screen (Step 01 Pending) -->
+        <template x-if="!currentStep||(currentStep.id==='01-system-check'&&currentStep.status==='pending')">
+          <div class="splash">
+            <h1 style="font-size:32px;font-weight:600;margin-bottom:12px;color:#fff;letter-spacing:-0.5px;">Ready to Build</h1>
+            <p style="color:var(--text-secondary);line-height:1.6;margin-bottom:32px;">This wizard will configure Kubernetes, Tailscale VPN, Cloudflare tunnels, databases, and APIs required to run your software factory on this machine.</p>
+            
+            <!-- .env upload area -->
+            <div style="margin-bottom:24px;width:100%;max-width:400px;">
+              <div @dragover.prevent="$event.currentTarget.style.borderColor='var(--accent)'" @dragleave="$event.currentTarget.style.borderColor='var(--border-subtle)'" @drop.prevent="handleFileDrop($event)" 
+                   style="border:2px dashed var(--border-subtle);border-radius:12px;padding:20px;text-align:center;transition:border-color .2s;cursor:pointer;" @click="$refs.envFileInput.click()">
+                <input type="file" x-ref="envFileInput" accept=".env,.tfvars,.conf,.txt" @change="handleFileSelect($event)" style="display:none;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" style="margin-bottom:8px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <div style="font-size:13px;color:var(--text-secondary);">Drop a <strong>.env</strong> or <strong>.tfvars</strong> file to pre-fill credentials</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">or click to browse</div>
+              </div>
+              <template x-if="configUploaded">
+                <div style="margin-top:8px;display:flex;align-items:center;gap:6px;justify-content:center;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.5" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>
+                  <span style="font-size:12px;color:var(--ok);" x-text="configUploadedMsg"></span>
+                </div>
+              </template>
+            </div>
+
+            <button @click="startInstallation()" class="btn btn-primary" style="padding:14px 32px;font-size:15px;border-radius:10px;">
+              Start Installation
+            </button>
+            
+            <!-- Clean install option -->
+            <div style="margin-top:24px;">
+              <button @click="showCleanConfirm=true" class="btn btn-ghost" style="font-size:12px;padding:8px 16px;color:var(--text-muted);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                Clean Install (wipe everything)
+              </button>
+            </div>
+            
+            <!-- Clean Install Confirmation Modal -->
+            <template x-if="showCleanConfirm">
+              <div style="position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:200;" @click.self="showCleanConfirm=false">
+                <div class="surface-elevated" style="width:440px;padding:32px;text-align:center;">
+                  <div style="width:56px;height:56px;border-radius:50%;background:var(--danger-dim);display:inline-flex;align-items:center;justify-content:center;margin-bottom:16px;border:2px solid var(--danger);">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.5" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4m0 4h.01"/></svg>
+                  </div>
+                  <h3 style="font-size:18px;font-weight:600;margin-bottom:8px;color:#fff;">Wipe Everything?</h3>
+                  <p style="color:var(--text-secondary);font-size:13px;line-height:1.6;margin-bottom:24px;">This will <strong style="color:var(--danger);">uninstall K3s</strong>, delete all pods, volumes, databases, and configuration. The system will be completely clean for a fresh installation.</p>
+                  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;text-align:left;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px;">
+                    <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text-secondary);">
+                      <input type="checkbox" x-model="cleanDeleteTunnel" style="margin-top:2px;">
+                      <span>Delete Cloudflare tunnel created by installer</span>
+                    </label>
+                    <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text-secondary);">
+                      <input type="checkbox" x-model="cleanDeleteRemoteRepos" style="margin-top:2px;">
+                      <span>Also delete remote Git repos (<code>nexus-api</code>, <code>nexus-console</code>, <code>infra-gitops</code>)</span>
+                    </label>
+                  </div>
+                  <div style="display:flex;gap:12px;justify-content:center;">
+                    <button @click="showCleanConfirm=false" class="btn btn-ghost" style="flex:1;">Cancel</button>
+                    <button @click="executeCleanInstall()" class="btn btn-danger" style="flex:1;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      Yes, Wipe Everything
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- CONFIGURATION WIZARD (Step 04) -->
+        <template x-if="isConfigStep">
+          <div style="max-width:720px;margin:0 auto;width:100%;">
+
+            <!-- Help Modal -->
+            <template x-if="activeModal">
+              <div style="position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:300;padding:24px;" @click.self="activeModal=null">
+                <div class="surface-elevated" style="width:100%;max-width:560px;padding:32px;max-height:80vh;overflow-y:auto;">
+
+                  <!-- Git Modal -->
+                  <template x-if="activeModal==='git'">
+                    <div>
+                      <h3 style="font-size:18px;font-weight:600;color:#fff;margin-bottom:8px;">How to create a GitHub Personal Access Token</h3>
+                      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;">A Classic PAT with the following scopes is required:</p>
+                      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:16px;margin-bottom:16px;">
+                        <div style="font-size:12px;font-family:'JetBrains Mono',monospace;color:#93c5fd;line-height:2;">
+                          ✓ repo &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; (full repository access)<br>
+                          ✓ workflow &nbsp;&nbsp;&nbsp; (update GitHub Actions)<br>
+                          ✓ admin:org &nbsp;&nbsp; (create repos in org/user)
+                        </div>
+                      </div>
+                      <ol style="color:var(--text-secondary);font-size:13px;line-height:2;padding-left:20px;margin-bottom:24px;">
+                        <li>Go to <strong style="color:var(--accent);">github.com → Settings → Developer settings</strong></li>
+                        <li>Click <strong style="color:#fff;">Personal access tokens → Tokens (classic)</strong></li>
+                        <li>Click <strong style="color:#fff;">Generate new token (classic)</strong></li>
+                        <li>Set expiration to <strong style="color:#fff;">No expiration</strong> (or 1 year)</li>
+                        <li>Check the 3 scopes listed above</li>
+                        <li>Click <strong style="color:#fff;">Generate token</strong> and copy it</li>
+                      </ol>
+                      <div style="font-size:12px;color:var(--warn);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:6px;padding:12px;">⚠ Copy the token immediately — GitHub only shows it once.</div>
+                    </div>
+                  </template>
+
+                  <!-- Docker Modal -->
+                  <template x-if="activeModal==='docker'">
+                    <div>
+                      <h3 style="font-size:18px;font-weight:600;color:#fff;margin-bottom:8px;">How to create a Docker Hub Access Token</h3>
+                      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;">A <strong>Read, Write, Delete</strong> token is required so CI/CD can push images.</p>
+                      <ol style="color:var(--text-secondary);font-size:13px;line-height:2;padding-left:20px;margin-bottom:24px;">
+                        <li>Go to <strong style="color:var(--accent);">hub.docker.com → Account Settings → Security</strong></li>
+                        <li>Click <strong style="color:#fff;">New Access Token</strong></li>
+                        <li>Name it (e.g. <em>software-factory</em>)</li>
+                        <li>Set permissions to <strong style="color:#fff;">Read, Write, Delete</strong></li>
+                        <li>Click <strong style="color:#fff;">Generate</strong> → copy the token (starts with <code style="color:#93c5fd;">dckr_pat_</code>)</li>
+                      </ol>
+                      <div style="font-size:12px;color:#a3a3aa;">Free tier: unlimited public repos + 1 private. The installer creates the repos automatically on first pipeline run.</div>
+                    </div>
+                  </template>
+
+                  <!-- Cloudflare Modal -->
+                  <template x-if="activeModal==='cloudflare'">
+                    <div>
+                      <h3 style="font-size:18px;font-weight:600;color:#fff;margin-bottom:8px;">How to create a scoped Cloudflare API Token</h3>
+                      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;">Create a <strong>custom token</strong> with exactly these permissions:</p>
+                      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:16px;margin-bottom:16px;">
+                        <div style="font-size:12px;font-family:'JetBrains Mono',monospace;color:#93c5fd;line-height:2.2;">
+                          Account → Cloudflare Tunnel &nbsp;&nbsp;&nbsp; Edit<br>
+                          Account → Account Settings &nbsp;&nbsp;&nbsp; Read<br>
+                          Zone → DNS &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Edit<br>
+                          Zone → Zone &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Read
+                        </div>
+                      </div>
+                      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Resources:</div>
+                      <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;font-family:'JetBrains Mono',monospace;color:#93c5fd;line-height:2;">
+                        Account Resources: Include → your account<br>
+                        Zone Resources: Include → your domain
+                      </div>
+                      <ol style="color:var(--text-secondary);font-size:13px;line-height:2;padding-left:20px;margin-bottom:16px;">
+                        <li>Go to <strong style="color:var(--accent);">dash.cloudflare.com → My Profile → API Tokens</strong></li>
+                        <li>Click <strong style="color:#fff;">Create Token → Custom token</strong></li>
+                        <li>Add the 4 permissions and 2 resource scopes above</li>
+                        <li>Click <strong style="color:#fff;">Continue to summary → Create Token</strong></li>
+                        <li>Your <strong style="color:#fff;">Account ID</strong> is in the URL: <code style="color:#93c5fd;font-size:11px;">dash.cloudflare.com/{account-id}</code></li>
+                      </ol>
+                      <div style="font-size:12px;color:var(--warn);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:6px;padding:12px;">⚠ The token-verify endpoint may return 403 for scoped tokens — this is expected. The installer validates via zone access instead.</div>
+                    </div>
+                  </template>
+
+                  <!-- Tailscale Modal -->
+                  <template x-if="activeModal==='tailscale'">
+                    <div>
+                      <h3 style="font-size:18px;font-weight:600;color:#fff;margin-bottom:8px;">How to create Tailscale credentials (OAuth + ACL token)</h3>
+                      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px;">OAuth credentials register the operator. The ACL token lets the installer auto-fix tag policy issues (tagOwners) without manual edits.</p>
+                      <ol style="color:var(--text-secondary);font-size:13px;line-height:2;padding-left:20px;margin-bottom:16px;">
+                        <li>Go to <strong style="color:var(--accent);">login.tailscale.com/admin/settings/oauth</strong></li>
+                        <li>Click <strong style="color:#fff;">Generate OAuth client</strong></li>
+                        <li>Check <strong style="color:#fff;">Devices → Write</strong> (required for Operator)</li>
+                        <li>Copy the <strong style="color:#fff;">Client ID</strong> and <strong style="color:#fff;">Client Secret</strong></li>
+                        <li>Go to <strong style="color:var(--accent);">login.tailscale.com/admin/settings/keys</strong> and create an <strong style="color:#fff;">API/Auth key</strong> with ACL policy access</li>
+                        <li>Copy that key as <strong style="color:#fff;">ACL Admin Token</strong> (format usually <code style="color:#93c5fd;">tskey-api-...</code>)</li>
+                        <li><strong style="color:#fff;">DNS suffix</strong>: find it at <em>tailscale.com/admin/dns</em> → it looks like <code style="color:#93c5fd;">tailXXXX.ts.net</code></li>
+                      </ol>
+                      <div style="font-size:12px;color:#a3a3aa;">The Tailscale Operator runs inside K3s and allows database services (MongoDB) to be exposed securely over your private tailnet — accessible from your laptop without opening ports.</div>
+                    </div>
+                  </template>
+
+                  <button @click="activeModal=null" class="btn btn-ghost" style="margin-top:24px;width:100%;">Close</button>
+                </div>
+              </div>
+            </template>
+
+            <!-- Wizard sub-step progress bar -->
+            <div style="margin-bottom:32px;">
+              <div style="display:flex;align-items:center;gap:0;">
+                <template x-for="(label,i) in ['Core','Domain','Git','Docker','Cloudflare','Tailscale','Review']" :key="i">
+                  <div style="display:flex;align-items:center;flex:1;">
+                    <div style="display:flex;flex-direction:column;align-items:center;flex:1;">
+                      <div :style="`width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:all .3s;border:2px solid;` + (wizardStep===i ? 'background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-dim);' : (wizardStep>i ? 'background:var(--ok);border-color:var(--ok);color:#fff;' : 'background:var(--bg-elevated);border-color:var(--border-subtle);color:var(--text-muted);'))">
+                        <span x-show="wizardStep<=i" x-text="i+1"></span>
+                        <svg x-show="wizardStep>i" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>
+                      </div>
+                      <div style="font-size:10px;margin-top:4px;white-space:nowrap;" :style="wizardStep===i ? 'color:var(--accent);font-weight:600;' : (wizardStep>i ? 'color:var(--ok);' : 'color:var(--text-muted);')" x-text="label"></div>
+                    </div>
+                    <div x-show="i<6" :style="`height:2px;flex:1;margin-bottom:16px;transition:background .3s;` + (wizardStep>i ? 'background:var(--ok);' : 'background:var(--border-subtle);')"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Sub-step 0: Admin Account -->
+            <div x-show="wizardStep===0">
+              <h2 style="font-size:20px;font-weight:600;color:#fff;margin-bottom:4px;">Admin Account</h2>
+              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">Create control-plane credentials for Nexus, ArgoCD, and Vault.</p>
+              <div style="display:flex;flex-direction:column;gap:16px;">
+                <div>
+                  <label class="label">Username</label>
+                  <input x-model="creds.SF_ADMIN_USER" class="input" placeholder="admin">
+                </div>
+                <div>
+                  <label class="label">Password</label>
+                  <input type="password" x-model="creds.SF_ADMIN_PASSWORD" class="input" placeholder="Minimum 8 characters">
+                </div>
+                <div>
+                  <label class="label">Confirm Password</label>
+                  <input type="password" x-model="wzConfirmPw" class="input" placeholder="Repeat password">
+                </div>
+                <div>
+                  <label class="label">ArgoCD Admin Password <span style="color:var(--danger);">*</span></label>
+                  <input type="password" x-model="creds.SF_ARGOCD_PASSWORD" class="input" placeholder="Password for ArgoCD user: admin">
+                </div>
+                <div>
+                  <label class="label">Vault Root/Bootstrap Token <span style="color:var(--danger);">*</span></label>
+                  <input type="password" x-model="creds.SF_VAULT_TOKEN" class="input" placeholder="vault_init_token from terraform.tfvars">
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Used to seed `system_config.vault_token` so app deploys can write/read secrets from day one.</div>
+                </div>
+                <template x-if="creds.SF_ADMIN_PASSWORD && wzConfirmPw && creds.SF_ADMIN_PASSWORD !== wzConfirmPw">
+                  <div style="color:var(--danger);font-size:12px;">✗ Passwords do not match</div>
+                </template>
+              </div>
+              <button @click="wizardNext()" :disabled="!creds.SF_ADMIN_USER || !creds.SF_ADMIN_PASSWORD || creds.SF_ADMIN_PASSWORD.length < 6 || creds.SF_ADMIN_PASSWORD !== wzConfirmPw || !creds.SF_ARGOCD_PASSWORD || creds.SF_ARGOCD_PASSWORD.length < 6 || !creds.SF_VAULT_TOKEN"
+                class="btn btn-primary" style="width:100%;margin-top:24px;" :style="(!creds.SF_ADMIN_USER || !creds.SF_ADMIN_PASSWORD || creds.SF_ADMIN_PASSWORD.length < 6 || creds.SF_ADMIN_PASSWORD !== wzConfirmPw || !creds.SF_ARGOCD_PASSWORD || creds.SF_ARGOCD_PASSWORD.length < 6 || !creds.SF_VAULT_TOKEN) ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
+            </div>
+
+            <!-- Sub-step 1: Platform Mode & Domain -->
+            <div x-show="wizardStep===1">
+              <h2 style="font-size:20px;font-weight:600;color:#fff;margin-bottom:4px;">Platform Mode &amp; Domain</h2>
+              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">How will your platform be accessed? A domain is needed to expose public apps.</p>
+              <div style="display:flex;flex-direction:column;gap:16px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div @click="creds.SF_MODE='standalone'" :style="`padding:16px;border-radius:10px;cursor:pointer;border:2px solid;transition:all .2s;` + (creds.SF_MODE==='standalone' ? 'border-color:var(--accent);background:var(--accent-dim);' : 'border-color:var(--border-subtle);background:var(--bg-elevated);')">
+                    <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px;">Standalone</div>
+                    <div style="font-size:11px;color:var(--text-muted);">Single VPS, access via IP + NodePort. Good for dev &amp; testing.</div>
+                  </div>
+                  <div @click="creds.SF_MODE='hybrid'" :style="`padding:16px;border-radius:10px;cursor:pointer;border:2px solid;transition:all .2s;` + (creds.SF_MODE==='hybrid' ? 'border-color:var(--accent);background:var(--accent-dim);' : 'border-color:var(--border-subtle);background:var(--bg-elevated);')">
+                    <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px;">Hybrid</div>
+                    <div style="font-size:11px;color:var(--text-muted);">Public domain + Tailscale VPN. Full production setup with TLS.</div>
+                  </div>
+                </div>
+                <div>
+                  <label class="label">Domain Name <span style="color:var(--danger);">*</span></label>
+                  <input x-model="creds.SF_DOMAIN" class="input" placeholder="automation.com.mx">
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Apps will be exposed as: <span style="color:var(--accent);" x-text="'app-name.' + (creds.SF_DOMAIN||'yourdomain.com')"></span></div>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;margin-top:24px;">
+                <button @click="wizardStep=0" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
+                <button @click="wizardNext()" :disabled="!creds.SF_DOMAIN" class="btn btn-primary" style="flex:1;" :style="!creds.SF_DOMAIN ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
+              </div>
+            </div>
+
+            <!-- Sub-step 2: Git Provider -->
+            <div x-show="wizardStep===2">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <h2 style="font-size:20px;font-weight:600;color:#fff;">Git Provider</h2>
+                <button @click="activeModal='git'" class="btn btn-ghost" style="font-size:11px;padding:6px 12px;">? How to get a token</button>
+              </div>
+              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">The installer will create <strong style="color:#fff;">3 private repos</strong> (nexus-api, nexus-console, infra-gitops) and configure GitHub Actions. <strong>Validation is required.</strong></p>
+              <div style="display:flex;gap:8px;margin-bottom:16px;">
+                <button @click="creds.SF_GIT_PROVIDER='github'; wzValidated.git=false" :style="`flex:1;padding:10px;border-radius:8px;font-size:12px;font-weight:600;border:2px solid;transition:all .2s;` + (creds.SF_GIT_PROVIDER==='github' ? 'background:var(--accent-dim);border-color:var(--accent);color:var(--accent);' : 'background:var(--bg-elevated);border-color:var(--border-subtle);color:var(--text-muted);')">GitHub</button>
+                <button @click="creds.SF_GIT_PROVIDER='bitbucket'; wzValidated.git=false" :style="`flex:1;padding:10px;border-radius:8px;font-size:12px;font-weight:600;border:2px solid;transition:all .2s;` + (creds.SF_GIT_PROVIDER==='bitbucket' ? 'background:var(--accent-dim);border-color:var(--accent);color:var(--accent);' : 'background:var(--bg-elevated);border-color:var(--border-subtle);color:var(--text-muted);')">Bitbucket</button>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div>
+                  <label class="label" x-text="creds.SF_GIT_PROVIDER==='bitbucket' ? 'Email (Bitbucket requires email)' : 'Username'"></label>
+                  <input x-model="creds.SF_GIT_USER" class="input" @input="wzValidated.git=false" :placeholder="creds.SF_GIT_PROVIDER==='bitbucket' ? 'you@example.com' : 'your-github-username'">
+                </div>
+                <template x-if="creds.SF_GIT_PROVIDER==='bitbucket'">
+                  <div>
+                    <label class="label">Workspace Slug</label>
+                    <input x-model="creds.SF_GIT_WORKSPACE" class="input" @input="wzValidated.git=false" placeholder="my-workspace">
+                  </div>
+                </template>
+                <div>
+                  <label class="label" x-text="creds.SF_GIT_PROVIDER==='bitbucket' ? 'App Password' : 'Personal Access Token'"></label>
+                  <input type="password" x-model="creds.SF_GIT_TOKEN" class="input" @input="wzValidated.git=false" placeholder="Token...">
+                </div>
+              </div>
+              <!-- Validation feedback -->
+              <template x-if="wzValidResult.git">
+                <div :style="`margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px;` + (wzValidResult.git.valid ? 'background:var(--ok-dim);border:1px solid rgba(16,185,129,.3);color:#6ee7b7;' : 'background:var(--danger-dim);border:1px solid rgba(239,68,68,.3);color:#fca5a5;')">
+                  <span x-text="wzValidResult.git.valid ? '✓' : '✗'"></span>
+                  <span x-text="wzValidResult.git.valid ? 'Connected successfully' : (wzValidResult.git.errors[0]?.msg || 'Validation failed')"></span>
+                </div>
+              </template>
+              <div style="display:flex;gap:12px;margin-top:24px;">
+                <button @click="wizardStep=1" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
+                <button @click="wzValidateService('git')" :disabled="wzValidating.git || !creds.SF_GIT_USER || !creds.SF_GIT_TOKEN"
+                  :style="`padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-secondary);transition:all .2s;` + (wzValidating.git ? 'opacity:.6;cursor:wait;' : '')"
+                  x-text="wzValidating.git ? 'Testing...' : (wzValidated.git ? '✓ Re-test' : 'Test Connection')"></button>
+                <button @click="wizardNext()" :disabled="!wzValidated.git" class="btn btn-primary" style="flex:1;" :style="!wzValidated.git ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
+              </div>
+            </div>
+
+            <!-- Sub-step 3: Docker Hub -->
+            <div x-show="wizardStep===3">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <h2 style="font-size:20px;font-weight:600;color:#fff;">Docker Hub</h2>
+                <button @click="activeModal='docker'" class="btn btn-ghost" style="font-size:11px;padding:6px 12px;">? How to get a token</button>
+              </div>
+              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">CI/CD pipelines push Docker images here. The free tier supports unlimited public repos. <strong>Validation is required.</strong></p>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div>
+                  <label class="label">Docker Hub Username</label>
+                  <input x-model="creds.SF_DOCKER_USER" class="input" @input="wzValidated.docker=false" placeholder="your-dockerhub-user">
+                </div>
+                <div>
+                  <label class="label">Access Token <span style="font-size:11px;color:var(--text-muted);">(starts with dckr_pat_)</span></label>
+                  <input type="password" x-model="creds.SF_DOCKER_TOKEN" class="input" @input="wzValidated.docker=false" placeholder="dckr_pat_...">
+                </div>
+              </div>
+              <template x-if="wzValidResult.docker">
+                <div :style="`margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px;` + (wzValidResult.docker.valid ? 'background:var(--ok-dim);border:1px solid rgba(16,185,129,.3);color:#6ee7b7;' : 'background:var(--danger-dim);border:1px solid rgba(239,68,68,.3);color:#fca5a5;')">
+                  <span x-text="wzValidResult.docker.valid ? '✓' : '✗'"></span>
+                  <span x-text="wzValidResult.docker.valid ? 'Authentication successful' : (wzValidResult.docker.errors[0]?.msg || 'Validation failed')"></span>
+                </div>
+              </template>
+              <div style="display:flex;gap:12px;margin-top:24px;">
+                <button @click="wizardStep=2" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
+                <button @click="wzValidateService('docker')" :disabled="wzValidating.docker || !creds.SF_DOCKER_USER || !creds.SF_DOCKER_TOKEN"
+                  :style="`padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-secondary);transition:all .2s;` + (wzValidating.docker ? 'opacity:.6;cursor:wait;' : '')"
+                  x-text="wzValidating.docker ? 'Testing...' : (wzValidated.docker ? '✓ Re-test' : 'Test Connection')"></button>
+                <button @click="wizardNext()" :disabled="!wzValidated.docker" class="btn btn-primary" style="flex:1;" :style="!wzValidated.docker ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
+              </div>
+            </div>
+
+            <!-- Sub-step 4: Cloudflare -->
+            <div x-show="wizardStep===4">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <h2 style="font-size:20px;font-weight:600;color:#fff;">Cloudflare <span style="font-size:12px;font-weight:400;color:var(--text-muted);">(required for hybrid mode)</span></h2>
+                <button @click="activeModal='cloudflare'" class="btn btn-ghost" style="font-size:11px;padding:6px 12px;">? How to create token</button>
+              </div>
+              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">Creates a secure tunnel from Cloudflare's edge to your VPS — no open inbound ports, free TLS, global CDN.</p>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div>
+                  <label class="label">Cloudflare API Token <span style="color:var(--danger);">*</span></label>
+                  <input type="password" x-model="creds.SF_CLOUDFLARE_TOKEN" class="input" @input="wzValidated.cloudflare=false" placeholder="PbnDTmq...">
+                </div>
+                <div>
+                  <label class="label">Account ID <span style="color:var(--danger);">*</span></label>
+                  <input x-model="creds.SF_CLOUDFLARE_ACCOUNT_ID" class="input" @input="wzValidated.cloudflare=false" placeholder="aec0b831b7379e82d545b63a0948c6a8">
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Found in the URL when logged in: <span style="color:var(--accent);">dash.cloudflare.com/{account-id}</span></div>
+                </div>
+                <div style="padding:10px 14px;border-radius:8px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);font-size:12px;color:var(--text-secondary);">
+                  <strong style="color:#818cf8;">Auto-tunnel:</strong> A Cloudflare Tunnel will be created automatically during installation. Old stale tunnels will be cleaned up. No manual tunnel token needed.
+                </div>
+              </div>
+              <template x-if="wzValidResult.cloudflare">
+                <div :style="`margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px;` + (wzValidResult.cloudflare.valid ? 'background:var(--ok-dim);border:1px solid rgba(16,185,129,.3);color:#6ee7b7;' : 'background:var(--danger-dim);border:1px solid rgba(239,68,68,.3);color:#fca5a5;')">
+                  <span x-text="wzValidResult.cloudflare.valid ? '✓' : '✗'"></span>
+                  <span x-text="wzValidResult.cloudflare.valid ? 'Cloudflare credentials valid' : (wzValidResult.cloudflare.errors[0]?.msg || 'Validation failed')"></span>
+                </div>
+              </template>
+              <template x-if="wzValidResult.cloudflare && wzValidResult.cloudflare.warnings && wzValidResult.cloudflare.warnings.length > 0">
+                <div style="margin-top:8px;padding:10px 14px;border-radius:8px;font-size:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);color:#fde68a;">
+                  <span x-text="'⚠ ' + wzValidResult.cloudflare.warnings[0]?.msg"></span>
+                </div>
+              </template>
+              <div style="display:flex;gap:12px;margin-top:24px;">
+                <button @click="wizardStep=3" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
+                <button @click="wzValidateService('cloudflare')" :disabled="wzValidating.cloudflare || !creds.SF_CLOUDFLARE_TOKEN || !creds.SF_CLOUDFLARE_ACCOUNT_ID"
+                  :style="`padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-secondary);transition:all .2s;` + (wzValidating.cloudflare ? 'opacity:.6;cursor:wait;' : '')"
+                  x-text="wzValidating.cloudflare ? 'Validating...' : (wzValidated.cloudflare ? '✓ Re-validate' : 'Validate Credentials')"></button>
+                <button @click="wizardNext()" :disabled="!wzValidated.cloudflare" class="btn btn-primary" style="flex:1;" :style="!wzValidated.cloudflare ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
+              </div>
+            </div>
+
+            <!-- Sub-step 5: Tailscale -->
+            <div x-show="wizardStep===5">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <h2 style="font-size:20px;font-weight:600;color:#fff;">Tailscale VPN</h2>
+                <button @click="activeModal='tailscale'" class="btn btn-ghost" style="font-size:11px;padding:6px 12px;">? How to create OAuth client</button>
+              </div>
+              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">Provides secure mesh networking for cluster services. Databases are exposed via Tailscale so you can connect from your laptop without opening ports. <strong>Validation is required.</strong></p>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div>
+                  <label class="label">OAuth Client ID <span style="color:var(--danger);">*</span></label>
+                  <input x-model="creds.SF_TAILSCALE_CLIENT_ID" class="input" @input="wzValidated.tailscale=false" placeholder="kF...">
+                </div>
+                <div>
+                  <label class="label">OAuth Client Secret <span style="color:var(--danger);">*</span></label>
+                  <input type="password" x-model="creds.SF_TAILSCALE_CLIENT_SECRET" class="input" @input="wzValidated.tailscale=false" placeholder="tskey-client-...">
+                </div>
+                <div>
+                  <label class="label">MagicDNS Suffix <span style="color:var(--text-muted);font-weight:400;"> — e.g. tail1234.ts.net</span></label>
+                  <input x-model="creds.SF_TAILSCALE_DNS_SUFFIX" class="input" placeholder="tailXXXX.ts.net">
+                </div>
+                <div>
+                  <label class="label">ACL Admin Token <span style="color:var(--danger);">*</span></label>
+                  <input type="password" x-model="creds.SF_TAILSCALE_ACL_TOKEN" class="input" @input="wzValidated.tailscale=false" placeholder="tskey-api-...">
+                  <div style="margin-top:6px;font-size:11px;color:var(--text-muted);">Required for automatic ACL/tagOwners fixes so Tailscale Operator can start without manual policy changes.</div>
+                </div>
+              </div>
+              <template x-if="wzValidResult.tailscale">
+                <div :style="`margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px;` + (wzValidResult.tailscale.valid ? 'background:var(--ok-dim);border:1px solid rgba(16,185,129,.3);color:#6ee7b7;' : 'background:var(--danger-dim);border:1px solid rgba(239,68,68,.3);color:#fca5a5;')">
+                  <span x-text="wzValidResult.tailscale.valid ? '✓' : '✗'"></span>
+                  <span x-text="wzValidResult.tailscale.valid ? 'Tailscale OAuth verified' : (wzValidResult.tailscale.errors[0]?.msg || 'Validation failed')"></span>
+                </div>
+              </template>
+              <div style="display:flex;gap:12px;margin-top:24px;">
+                <button @click="wizardStep=4" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
+                <button @click="wzValidateService('tailscale')" :disabled="wzValidating.tailscale || !creds.SF_TAILSCALE_CLIENT_ID || !creds.SF_TAILSCALE_CLIENT_SECRET || !creds.SF_TAILSCALE_ACL_TOKEN"
+                  :style="`padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-secondary);transition:all .2s;` + (wzValidating.tailscale ? 'opacity:.6;cursor:wait;' : '')"
+                  x-text="wzValidating.tailscale ? 'Testing...' : (wzValidated.tailscale ? '✓ Re-test' : 'Test Connection')"></button>
+                <button @click="wizardNext()" :disabled="!wzValidated.tailscale" class="btn btn-primary" style="flex:1;" :style="!wzValidated.tailscale ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
+              </div>
+            </div>
+
+            <!-- Sub-step 6: Review & Launch -->
+            <div x-show="wizardStep===6">
+              <h2 style="font-size:20px;font-weight:600;color:#fff;margin-bottom:4px;">Review &amp; Start</h2>
+              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">Everything is validated. Review the summary and click Start Installation to provision your platform.</p>
+              <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px;">
+                <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Admin Account</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.SF_ADMIN_USER + ' / •••••••'"></div></div>
+                  <div style="color:var(--ok);font-size:18px;">✓</div>
+                </div>
+                <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Control Plane Secrets</div><div style="font-size:11px;color:var(--text-muted);" x-text="'ArgoCD: ' + (creds.SF_ARGOCD_PASSWORD ? 'configured' : 'missing') + ' · Vault: ' + (creds.SF_VAULT_TOKEN ? 'configured' : 'missing')"></div></div>
+                  <div :style="(creds.SF_ARGOCD_PASSWORD && creds.SF_VAULT_TOKEN) ? 'color:var(--ok);font-size:18px;' : 'color:var(--danger);font-size:18px;'" x-text="(creds.SF_ARGOCD_PASSWORD && creds.SF_VAULT_TOKEN) ? '✓' : '✗'"></div>
+                </div>
+                <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Platform</div><div style="font-size:11px;color:var(--text-muted);" x-text="(creds.SF_MODE||'standalone') + ' · ' + (creds.SF_DOMAIN||'—')"></div></div>
+                  <div style="color:var(--ok);font-size:18px;">✓</div>
+                </div>
+                <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Git</div><div style="font-size:11px;color:var(--text-muted);" x-text="(creds.SF_GIT_PROVIDER||'—') + ' · ' + (creds.SF_GIT_USER||'—')"></div></div>
+                  <div style="color:var(--ok);font-size:18px;">✓</div>
+                </div>
+                <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Docker Hub</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.SF_DOCKER_USER||'—'"></div></div>
+                  <div style="color:var(--ok);font-size:18px;">✓</div>
+                </div>
+                <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Cloudflare</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.SF_CLOUDFLARE_ACCOUNT_ID ? 'Account ID: ' + creds.SF_CLOUDFLARE_ACCOUNT_ID.substring(0,8) + '...' : '—'"></div></div>
+                  <div style="color:var(--ok);font-size:18px;">✓</div>
+                </div>
+                <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Tailscale</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.SF_TAILSCALE_DNS_SUFFIX || creds.SF_TAILSCALE_CLIENT_ID || '—'"></div></div>
+                  <div style="color:var(--ok);font-size:18px;">✓</div>
+                </div>
+              </div>
+
+              <!-- Quick-fill drop zone -->
+              <div style="margin-bottom:20px;position:relative;">
+                <div style="border:2px dashed var(--border-subtle);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:border-color .2s;"
+                  @dragover.prevent @drop.prevent="handleFileDrop($event)" @click="$refs.fileInput.click()"
+                  onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border-subtle)'">
+                  <div style="font-size:12px;color:var(--text-muted);">Or drop a <strong>.env</strong> / <strong>.tfvars</strong> file here to overwrite fields</div>
+                  <input type="file" x-ref="fileInput" style="display:none" accept=".env,.tfvars,.txt" @change="handleFileSelect($event)">
+                </div>
+                <template x-if="configUploaded">
+                  <div style="margin-top:8px;font-size:12px;color:var(--ok);" x-text="configUploadedMsg"></div>
+                </template>
+              </div>
+
+              <div style="display:flex;gap:12px;">
+                <button @click="wizardStep=5" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
+                <button @click="submitCredentials()" :disabled="isValidating || isRunning" class="btn btn-primary" style="flex:1;font-size:14px;">
+                  <template x-if="isValidating || isRunning">
+                    <svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4m0 12v4m10-10h-4M6 12H2m15.07-7.07l-2.83 2.83M9.76 14.24l-2.83 2.83m12.73 0l-2.83-2.83M9.76 9.76L6.93 6.93"/></svg>
+                  </template>
+                  <span x-text="isValidating ? 'Saving...' : (isRunning ? 'Launching...' : '🚀 Start Installation')"></span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </template>
+
+        <!-- Default Step Runner View -->
+        <template x-if="currentStep&&currentStep.status!=='pending'&&!isConfigStep&&!isFinalStep">
+          <div class="splash" style="max-width:500px;">
+            <div style="width:72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:24px;border:2px solid var(--border-active);transition:all .3s;"
+                 :class="{
+                   'color:var(--accent); background:var(--accent-dim)': currentStep.status==='running'||currentStep.status==='done',
+                   'color:var(--danger); background:var(--danger-dim); border-color:var(--danger)': currentStep.status==='error'
+                 }">
+              <svg x-show="currentStep.status==='running'" class="spinner" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>
+              <svg x-show="currentStep.status==='done'" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>
+              <svg x-show="currentStep.status==='error'" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+            </div>
+            
+            <h2 style="font-size:24px;font-weight:600;margin-bottom:8px;color:#fff;" x-text="currentStep.title"></h2>
+            <p style="color:var(--text-secondary);margin-bottom:32px;font-size:15px;" x-text="currentStep.status==='running' ? 'Executing automated tasks... please wait.' : (currentStep.status==='error' ? 'A problem occurred. Review the terminal output below.' : 'Step complete.')"></p>
+            
+            <template x-if="currentStep.status==='error'">
+              <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+                <button @click="retryStep(currentStep.id)" class="btn btn-danger" style="padding:12px 32px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 1 0 2.1-5.9L2 9"/></svg> Retry Failed Step</button>
+                <button @click="markDoneAndContinue(currentStep.id)" class="btn btn-ghost" style="padding:10px 24px;font-size:12px;color:var(--text-muted);">I verified manually — Mark as Done & Continue →</button>
+              </div>
+            </template>
+            
+            <template x-if="currentStep.status==='done' && !isFinalStep">
+              <button @click="goToNextStep()" class="btn btn-primary" style="padding:12px 32px; margin-top:24px;">Continue to Next Step</button>
+            </template>
+          </div>
+        </template>
+
+        <!-- Final View -->
+        <template x-if="isFinalStep&&currentStep.status==='done'">
+          <div class="splash" style="max-width:500px;">
+            <div style="width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--ok-dim);border:2px solid var(--ok);margin-bottom:24px;box-shadow:0 0 40px var(--ok-dim);">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.5" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <h2 style="font-size:28px;font-weight:600;margin-bottom:12px;color:#fff;letter-spacing:-0.5px;">Platform Ready!</h2>
+            <p style="color:var(--text-secondary);line-height:1.6;margin-bottom:32px;">The Software Factory has been provisioned successfully. Your apps and services are now routing properly.</p>
+            
+            <div class="surface-elevated" style="padding:24px;width:100%;text-align:left;margin-bottom:20px;">
+              <h3 style="font-size:13px;font-weight:600;margin-bottom:16px;color:#fff;border-bottom:1px solid var(--border-subtle);padding-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Access Credentials</h3>
+              <div style="display:flex;justify-content:space-between;margin-bottom:16px;">
+                <span style="color:var(--text-secondary);font-size:13px;">Platform URL</span>
+                <a :href="consoleUrl()" target="_blank" style="color:var(--accent);text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:13px;" x-text="consoleUrl()"></a>
+              </div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:16px;">
+                <span style="color:var(--text-secondary);font-size:13px;">Admin User</span>
+                <span style="color:#fff;font-family:'JetBrains Mono',monospace;font-size:13px;" x-text="adminUser"></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;">
+                <span style="color:var(--text-secondary);font-size:13px;">Password</span>
+                <span style="color:#fff;font-family:'JetBrains Mono',monospace;font-size:13px;background:rgba(255,255,255,0.05);padding:2px 8px;border-radius:4px;user-select:all;" x-text="adminPass"></span>
+              </div>
+            </div>
+
+            <div style="padding:12px 14px;border-radius:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);font-size:12px;color:#86efac;margin-bottom:12px;">
+              Install completed. Use Nexus Console to launch and manage your apps.
+            </div>
+            <a :href="consoleUrl()" target="_blank" class="btn btn-primary" style="padding:14px 32px;font-size:15px;text-decoration:none;width:100%;">Open Nexus Console <svg style="margin-left:4px;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></a>
+          </div>
+        </template>
+        
+      </div> <!-- End Content -->
+
+      <!-- Terminal Resizer -->
+      <div class="resize-handle" @mousedown="startResize($event)"></div>
+      
+      <!-- Terminal -->
+      <div class="terminal-wrap" :style="'height:'+terminalHeight+'px;'">
+        <div class="terminal-header">
+          <span style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;">Console Output</span>
+          <div style="display:flex;align-items:center;gap:16px;">
+            <span style="font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;" x-text="logs.length+' lines'"></span>
+            <button @click="logs=[]" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:11px;font-weight:500;transition:color .2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--text-secondary)'">Clear Console</button>
+          </div>
+        </div>
+        <div class="terminal" x-ref="terminal">
+          <template x-for="(line,i) in logs" :key="i">
+            <div class="term-line" :class="termClass(line)" x-text="line"></div>
+          </template>
+          <div x-show="isRunning" style="display:flex;align-items:center;gap:8px;color:#34d399;margin-top:8px;">
+            <svg class="spinner" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/></svg>
+            <span style="font-size:11px;">System running...</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</template>
+
+<script>
+function installer(){return{
+  authenticated:false, tokenInput:'', token:'', authError:'', autoAuthenticating:false,
+  steps:[], currentStep:null, logs:[], isRunning:false, eventSource:null, connectedLogStepId:null, timers:{},
+  // Wizard state
+  wizardStep: 0,
+  wzConfirmPw: '',
+  wzValidating: { git:false, docker:false, cloudflare:false, tailscale:false },
+  wzValidated:  { git:false, docker:false, cloudflare:false, tailscale:false },
+  wzValidResult:{ git:null,  docker:null,  cloudflare:null,  tailscale:null  },
+  activeModal: null,
+  creds: {
+    SF_MODE: 'standalone',
+    SF_DOMAIN: '',
+    SF_TAILSCALE_ENABLED: 'true',
+    SF_TAILSCALE_CLIENT_ID: '',
+    SF_TAILSCALE_CLIENT_SECRET: '',
+    SF_TAILSCALE_DNS_SUFFIX: '',
+    SF_TAILSCALE_ACL_TOKEN: '',
+    SF_CLOUDFLARE_TOKEN: '',
+    SF_CLOUDFLARE_ACCOUNT_ID: '',
+    SF_GIT_PROVIDER: 'github',
+    SF_GIT_USER: '',
+    SF_GIT_EMAIL: '',
+    SF_GIT_TOKEN: '',
+    SF_GIT_WORKSPACE: '',
+    SF_DOCKER_USER: '',
+    SF_DOCKER_TOKEN: '',
+    SF_AWS_ACCESS_KEY: '',
+    SF_AWS_SECRET_KEY: '',
+    SF_AWS_REGION: 'us-east-1',
+    SF_ADMIN_USER: 'admin',
+    SF_ADMIN_PASSWORD: '',
+    SF_ADMIN_PASS: '',
+    SF_ARGOCD_PASSWORD: '',
+    SF_VAULT_TOKEN: ''
+  },
+  validationErrors: [], validationWarnings: [], isValidating: false,
+  adminUser:'', adminPass:'', terminalHeight: 280,
+  showCleanConfirm: false, showResetConfirm: false, cleanRunning: false, cleanDeleteRemoteRepos: false, cleanDeleteTunnel: true, configUploaded: false, configUploadedMsg: '', showAws: false,
+
+  get doneCount(){return this.steps.filter(s=>s.status==='done'||s.status==='skipped').length;},
+  get isConfigStep(){return this.currentStep?.id==='04-credentials' && (this.currentStep.status==='pending'||this.currentStep.status==='error');},
+  get isFinalStep(){return this.currentStep?.id==='11-finalize';},
+
+  consoleUrl(){
+    if(this.creds.SF_DOMAIN && this.creds.SF_DOMAIN !== 'localhost'){
+      return 'https://nexus-console.' + this.creds.SF_DOMAIN;
+    }
+    return 'http://localhost:30080';
+  },
+
+  termClass(line){
+    if(line.includes('[OK]')||line.includes('[✓]')) return 'term-ok';
+    if(line.includes('[ERROR]')||line.includes('[✗]')) return 'term-err';
+    if(line.includes('[WARN]')||line.includes('[!]')) return 'term-warn';
+    if(line.includes('[INFO]')||line.includes('===')) return 'term-info';
+    return 'term-default';
+  },
+
+  async init(){
+    const p=new URLSearchParams(window.location.search);
+    const t=p.get('token');
+    if(t){this.tokenInput=t; this.autoAuthenticating=true; await this.authenticate();}
+    this.startPolling();
+  },
+
+  async authenticate(){
+    this.authError=''; const t=this.tokenInput.trim();
+    if(!t) {this.authError='Enter a token'; this.autoAuthenticating=false; return;}
+    try{
+      const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})});
+      if(r.ok){this.token=t; this.authenticated=true; window.history.replaceState({},'','/'); await this.loadStatus();}
+      else{this.authError='Invalid token';}
+    }catch(e){this.authError='Connection failed';}
+    this.autoAuthenticating=false;
+  },
+
+  async loadStatus(){
+    try{
+      const r=await fetch('/api/status',{headers:{'Authorization':'Bearer '+this.token}});
+      const d=await r.json(); this.steps=d.steps;
+      if(d.admin){this.adminUser=d.admin.user||''; this.adminPass=d.admin.pass||'';}
+      
+      const running=this.steps.find(s=>s.status==='running');
+      const creds=this.steps.find(s=>s.id==='04-credentials'&&s.status==='pending');
+      const prev=this.steps.find(s=>s.id==='03-k3s'); // step BEFORE credentials
+      
+      if(running){
+        this.currentStep=running;
+        this.isRunning=true;
+        this.startTimer(running.id);
+        this.connectLogs(running.id);
+      }
+      else if(creds && prev?.status==='done'){this.currentStep=creds;}
+      else {
+        // Prioritize showing error step if any (so user can retry/skip)
+        const errStep=this.steps.find(s=>s.status==='error');
+        if(errStep){this.currentStep=errStep;}
+        else {
+          const last=[...this.steps].reverse().find(s=>s.status==='done'||s.status==='skipped');
+          this.currentStep=last||this.steps[0];
+        }
+      }
+    }catch(e){console.error(e);}
+  },
+
+  selectStep(s){ this.currentStep=s; },
+
+  goToNextStep() {
+    const idx = this.steps.findIndex(s => s.id === this.currentStep?.id);
+    if (idx >= 0 && idx + 1 < this.steps.length) {
+      const next = this.steps[idx+1];
+      this.currentStep = next;
+      // If auto, or we just want to run it
+      if (next.status === 'pending' || next.status === 'error') {
+         if(next.id !== '04-credentials') {
+             this.runStep(next.id);
+         }
+      } else if (next.status === 'running') {
+         this.connectLogs(next.id);
+      }
+    }
+  },
+  
+  startPolling() {
+      setInterval(() => {
+          if (this.authenticated && !this.isConfigStep && !this.isRunning) {
+              this.loadStatus(true);
+          }
+      }, 2500);
+  },
+
+  async startInstallation(){ await this.runStep('01-system-check'); },
+  
+  async runStep(id){
+    this.isRunning=true; const s=this.steps.find(x=>x.id===id);
+    if(s){this.currentStep=s; s.status='running'; s.started_at=Date.now()/1000;}
+    this.startTimer(id);
+    try{
+      await fetch('/api/steps/'+id+'/run',{method:'POST',headers:{'Authorization':'Bearer '+this.token,'Content-Type':'application/json'},body:JSON.stringify({})});
+      this.connectLogs(id);
+    } catch(e){this.isRunning=false;}
+  },
+  async retryStep(id){ const s=this.steps.find(x=>x.id===id); if(s)s.status='pending'; this.logs=[]; await this.runStep(id); },
+  async markDoneAndContinue(id){
+    // Skip-mark the errored step as done and continue to next
+    try{
+      await fetch('/api/steps/'+id+'/skip',{method:'POST',headers:{'Authorization':'Bearer '+this.token}});
+      await this.loadStatus();
+      this.goToNextStep();
+    } catch(e){ console.error(e); }
+  },
+
+  connectLogs(id){
+    // Avoid reconnecting to the same step stream; SSE replays backlog and duplicates logs.
+    if(this.eventSource && this.connectedLogStepId === id) return;
+    if(this.eventSource) this.eventSource.close();
+    this.connectedLogStepId = id;
+    this.eventSource=new EventSource('/api/steps/'+id+'/logs?token='+this.token);
+    this.eventSource.onmessage=(ev)=>{
+      try{
+        const m=JSON.parse(ev.data);
+        if(m.type==='log'){
+          this.logs.push(m.data); 
+          this.$nextTick(()=>{
+            const el=this.$refs.terminal; 
+            // Only auto-scroll if user is near bottom
+            if(el) {
+              const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+              if (isNearBottom) el.scrollTop = el.scrollHeight;
+            }
+          });
+        }
+        else if(m.type==='done'){
+          this.isRunning=false;
+          this.eventSource.close();
+          this.eventSource=null;
+          this.connectedLogStepId=null;
+          this.clearTimer(id);
+          this.loadStatus();
+        }
+      }catch(e){}
+    };
+    this.eventSource.onerror=()=>{
+      this.isRunning=false;
+      if(this.eventSource){
+        this.eventSource.close();
+        this.eventSource=null;
+      }
+      this.connectedLogStepId=null;
+    };
+  },
+
+  async submitCredentials(){
+    const body={
+      SF_MODE: this.creds.SF_MODE,
+      SF_DOMAIN: this.creds.SF_DOMAIN,
+      SF_TAILSCALE_ENABLED: "true",
+      SF_TAILSCALE_CLIENT_ID: this.creds.SF_TAILSCALE_CLIENT_ID,
+      SF_TAILSCALE_CLIENT_SECRET: this.creds.SF_TAILSCALE_CLIENT_SECRET,
+      SF_TAILSCALE_DNS_SUFFIX: this.creds.SF_TAILSCALE_DNS_SUFFIX,
+      SF_TAILSCALE_ACL_TOKEN: this.creds.SF_TAILSCALE_ACL_TOKEN,
+      SF_CLOUDFLARE_TOKEN: this.creds.SF_CLOUDFLARE_TOKEN,
+      SF_CLOUDFLARE_ACCOUNT_ID: this.creds.SF_CLOUDFLARE_ACCOUNT_ID,
+      SF_GIT_PROVIDER: this.creds.SF_GIT_PROVIDER,
+      SF_GIT_USER: this.creds.SF_GIT_USER,
+      SF_GIT_EMAIL: this.creds.SF_GIT_EMAIL || this.creds.SF_GIT_USER,
+      SF_GIT_TOKEN: this.creds.SF_GIT_TOKEN,
+      SF_GIT_WORKSPACE: this.creds.SF_GIT_WORKSPACE || this.creds.SF_GIT_USER,
+      SF_DOCKER_USER: this.creds.SF_DOCKER_USER,
+      SF_DOCKER_TOKEN: this.creds.SF_DOCKER_TOKEN,
+      SF_ADMIN_USER: this.creds.SF_ADMIN_USER,
+      SF_ADMIN_PASSWORD: this.creds.SF_ADMIN_PASSWORD,
+      SF_ADMIN_PASS: this.creds.SF_ADMIN_PASSWORD,
+      SF_ARGOCD_PASSWORD: this.creds.SF_ARGOCD_PASSWORD,
+      SF_VAULT_TOKEN: this.creds.SF_VAULT_TOKEN,
+      SF_VAULT_ROOT_TOKEN: this.creds.SF_VAULT_TOKEN
+    };
+    this.isRunning=true;
+    const s=this.steps.find(x=>x.id==='04-credentials');
+    if(s)s.status='running';
+    this.startTimer('04-credentials');
+    try{
+      await fetch('/api/credentials',{method:'POST',headers:{'Authorization':'Bearer '+this.token,'Content-Type':'application/json'},body:JSON.stringify(body)});
+      this.connectLogs('04-credentials');
+    } catch(e){this.isRunning=false;}
+  },
+
+  wizardNext(){
+    if(this.wizardStep < 6) this.wizardStep++;
+  },
+
+  async wzValidateService(service){
+    this.wzValidating[service] = true;
+    this.wzValidResult[service] = null;
+    this.wzValidated[service] = false;
+    const body = { ...this.creds };
+    try {
+      const r = await fetch('/api/validate-credentials', {
+        method:'POST',
+        headers:{'Authorization':'Bearer '+this.token,'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      const d = await r.json();
+      // Each service has its own errors/warnings — filter relevant ones
+      const fieldMap = {
+        git:        ['SF_GIT_USER','SF_GIT_TOKEN','SF_GIT_EMAIL','SF_GIT_WORKSPACE'],
+        docker:     ['SF_DOCKER_USER','SF_DOCKER_TOKEN'],
+        cloudflare: ['SF_CLOUDFLARE_TOKEN','SF_CLOUDFLARE_ACCOUNT_ID'],
+        tailscale:  ['SF_TAILSCALE_CLIENT_ID','SF_TAILSCALE_CLIENT_SECRET','SF_TAILSCALE_ACL_TOKEN']
+      };
+      const fields = fieldMap[service] || [];
+      const errs = (d.errors||[]).filter(e=>fields.includes(e.field)||fields.length===0);
+      const warns = (d.warnings||[]).filter(w=>fields.includes(w.field)||fields.length===0);
+      const valid = errs.length === 0;
+      this.wzValidResult[service] = { valid, errors: errs, warnings: warns };
+      this.wzValidated[service] = valid;
+    } catch(e) {
+      this.wzValidResult[service] = { valid:false, errors:[{msg:'Could not reach validation endpoint'}], warnings:[] };
+    }
+    this.wzValidating[service] = false;
+  },
+  async skipCredentials(){
+    try{
+      await fetch('/api/steps/04-credentials/skip',{method:'POST',headers:{'Authorization':'Bearer '+this.token}});
+      await this.loadStatus();
+      const next=this.steps.find(s=>s.id==='05-core-services');
+      if(next){
+        this.currentStep=next; 
+        if(next.auto&&next.status==='pending'){
+          setTimeout(()=>{this.isRunning=true; this.startTimer(next.id); this.connectLogs(next.id);}, 500);
+        }
+      }
+    }catch(e){}
+  },
+
+  async handleFileDrop(event){
+    const file=event.dataTransfer.files[0];
+    if(!file) return;
+    await this._processConfigFile(file);
+  },
+  async handleFileSelect(event){
+    const file=event.target.files[0];
+    if(!file) return;
+    await this._processConfigFile(file);
+  },
+  async _processConfigFile(file){
+    try{
+      const text=await file.text();
+      const res=await fetch('/api/upload-config',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+this.token},
+        body:JSON.stringify({content:text,filename:file.name})
+      });
+      const data=await res.json();
+      if(data.ok&&data.config){
+        const map=data.config;
+        for(const[k,v] of Object.entries(map)){
+          if(this.creds.hasOwnProperty(k)) this.creds[k]=v;
+        }
+        this.configUploaded=true;
+        this.configUploadedMsg='Loaded '+Object.keys(map).length+' settings from '+file.name;
+      }else{
+        this.configUploadedMsg='Error: '+(data.error||'Unknown error');
+        this.configUploaded=false;
+      }
+    }catch(e){
+      this.configUploadedMsg='Failed to read file: '+e.message;
+      this.configUploaded=false;
+    }
+  },
+  async executeResetState(){
+    this.showResetConfirm=false;
+    try{
+      const res=await fetch('/api/reset-state',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+this.token},
+        body:JSON.stringify({confirm:true})
+      });
+      const data=await res.json();
+      if(!data.ok){alert(data.error||'Reset failed'); return;}
+      await this.loadStatus();
+    }catch(e){alert('Reset error: '+e.message);}
+  },
+  async executeCleanInstall(){
+    this.showCleanConfirm=false;
+    this.cleanRunning=true;
+    this.logs=[];
+    try{
+      const res=await fetch('/api/clean-install',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+this.token},
+        body:JSON.stringify({
+          confirm:true,
+          delete_remote_repos: this.cleanDeleteRemoteRepos,
+          delete_cloudflare_tunnel: this.cleanDeleteTunnel
+        })
+      });
+      const data=await res.json();
+      if(!data.ok){this.cleanRunning=false; alert(data.error||'Clean install failed'); return;}
+      // Connect to SSE for clean-install logs
+      this.connectLogs('00-clean-install');
+      // Poll until done
+      const poll=setInterval(async()=>{
+        try{
+          const sr=await fetch('/api/status',{headers:{'Authorization':'Bearer '+this.token}});
+          const sd=await sr.json();
+          // Check if all steps are pending (clean done, server reset)
+          const allPending=sd.steps&&sd.steps.every(s=>s.status==='pending');
+          if(allPending){
+            clearInterval(poll);
+            this.cleanRunning=false;
+            this.logs.push({ts:new Date().toISOString().substr(11,8),msg:'✓ Clean install complete. Ready for fresh install.'});
+            await this.loadStatus();
+          }
+        }catch(e){}
+      },3000);
+    }catch(e){
+      this.cleanRunning=false;
+      alert('Clean install error: '+e.message);
+    }
+  },
+
+  stepDuration(s){if(!s.started_at)return''; const sec=Math.round((s.finished_at||Date.now()/1000)-s.started_at); return sec<60?sec+'s':Math.floor(sec/60)+'m '+sec%60+'s';},
+  startTimer(id){this.clearTimer(id); this.timers[id]=setInterval(()=>{const s=this.steps.find(x=>x.id===id); if(s&&s.status==='running')s._t=Date.now();},1000);},
+  clearTimer(id){if(this.timers[id]){clearInterval(this.timers[id]); delete this.timers[id];}},
+
+  startResize(e){
+    const documentBody = document.body;
+    documentBody.style.cursor = 'row-resize';
+    const startY = e.clientY;
+    const startH = this.terminalHeight;
+    const handle = e.target;
+    handle.classList.add('active');
+    const mouseMove = (ev) => {
+      this.terminalHeight = Math.max(100, Math.min(800, startH + (startY - ev.clientY)));
+      // Auto-scroll terminal down
+      const el=this.$refs.terminal;
+      if(el) el.scrollTop = el.scrollHeight;
+    };
+    const mouseUp = () => {
+      document.removeEventListener('mousemove', mouseMove);
+      document.removeEventListener('mouseup', mouseUp);
+      documentBody.style.cursor = 'default';
+      handle.classList.remove('active');
+    };
+    document.addEventListener('mousemove', mouseMove);
+    document.addEventListener('mouseup', mouseUp);
+  }
+};}
+</script>
+</body>
+</html>

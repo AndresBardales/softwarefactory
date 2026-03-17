@@ -70,6 +70,16 @@ check_os() {
     else
       log_info "systemd: active"
     fi
+
+    # Check for broken K3s installation (stale state, cgroup issues)
+    if command -v k3s &>/dev/null; then
+      if k3s kubectl get nodes &>/dev/null 2>&1; then
+        log_info "K3s: running"
+      else
+        log_warn "K3s is installed but not responding"
+        log_warn "The installer will attempt a clean reinstall automatically"
+      fi
+    fi
   fi
 }
 
@@ -141,6 +151,28 @@ check_dependencies() {
 
   # openssl (for password generation)
   command -v openssl &>/dev/null && log_info "openssl: installed" || missing+=("openssl")
+
+  # iptables — required by K3s Flannel CNI for pod networking
+  if command -v iptables &>/dev/null; then
+    log_info "iptables: installed"
+  else
+    log_warn "iptables not found — required by K3s for pod networking"
+    log_step "Installing iptables..."
+    if sudo apt-get update -qq && sudo apt-get install -y iptables &>/dev/null; then
+      log_info "iptables: installed"
+    else
+      missing+=("iptables")
+    fi
+  fi
+
+  # libsodium-dev + pip3 (needed for PyNaCl in step 06 — GitHub Actions secrets)
+  if ! python3 -c 'import nacl' &>/dev/null 2>&1; then
+    log_step "Installing libsodium-dev + PyNaCl (GitHub secrets encryption)..."
+    sudo apt-get install -y -qq libsodium-dev python3-pip &>/dev/null 2>&1 || true
+    pip3 install pynacl --break-system-packages -q 2>/dev/null || \
+      pip3 install pynacl -q 2>/dev/null || \
+      log_warn "Could not install PyNaCl — GitHub Actions secrets setup may fail"
+  fi
 
   if [ ${#missing[@]} -gt 0 ]; then
     log_error "Missing required tools: ${missing[*]}"
