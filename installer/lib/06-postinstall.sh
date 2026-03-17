@@ -59,6 +59,7 @@ run_post_install() {
   "argocd_password": "${SF_ARGOCD_PASSWORD:-}",
   "git_token": "${SF_GIT_TOKEN}",
   "git_username": "${SF_GIT_USER}",
+  "git_workspace": "${SF_GIT_WORKSPACE}",
   "bitbucket_email": "${SF_GIT_USER}",
   "bitbucket_workspace": "${SF_BITBUCKET_WORKSPACE:-}",
   "dockerhub_username": "${SF_DOCKER_USERNAME}",
@@ -66,7 +67,7 @@ run_post_install() {
   "tailscale_dns_suffix": "${SF_TAILSCALE_DNS_SUFFIX:-}",
   "sf_mode": "${SF_MODE}",
   "git_provider": "${SF_GIT_PROVIDER:-bitbucket}",
-  "github_org": "${SF_GITHUB_ORG:-${SF_GIT_USER}}",
+  "github_org": "${SF_GITHUB_ORG:-${SF_GIT_WORKSPACE}}",
   "github_token": "${SF_GIT_TOKEN}",
   "github_is_org": false
 }
