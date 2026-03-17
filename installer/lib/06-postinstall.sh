@@ -18,6 +18,17 @@ run_post_install() {
 
   log_step "Seeding platform configuration..."
 
+  # Canonical git namespace resolution used by nexus-api runtime.
+  local git_provider="${SF_GIT_PROVIDER:-github}"
+  local git_workspace="${SF_GIT_WORKSPACE:-${SF_BITBUCKET_WORKSPACE:-${SF_GIT_USERNAME:-}}}"
+  local github_org=""
+  local bitbucket_workspace=""
+  if [ "$git_provider" = "github" ]; then
+    github_org="$git_workspace"
+  elif [ "$git_provider" = "bitbucket" ]; then
+    bitbucket_workspace="$git_workspace"
+  fi
+
   # 1. Create admin user (bootstrap)
   local token
   token=$(curl -sf --max-time 10 -X POST "${api_url}/api/v1/auth/signup" \
@@ -53,10 +64,13 @@ run_post_install() {
   "argocd_url": "${argocd_url}",
   "argocd_username": "admin",
   "argocd_password": "${SF_ARGOCD_PASSWORD:-}",
+  "git_provider": "${git_provider}",
   "git_token": "${SF_GIT_TOKEN}",
   "git_username": "${SF_GIT_USERNAME}",
+  "git_workspace": "${git_workspace}",
+  "github_org": "${github_org}",
   "bitbucket_email": "${SF_GIT_EMAIL}",
-  "bitbucket_workspace": "${SF_BITBUCKET_WORKSPACE:-}",
+  "bitbucket_workspace": "${bitbucket_workspace}",
   "dockerhub_username": "${SF_DOCKER_USERNAME}",
   "dockerhub_token": "${SF_DOCKER_TOKEN}",
   "tailscale_dns_suffix": "${SF_TAILSCALE_DNS_SUFFIX:-}",
