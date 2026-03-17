@@ -3,27 +3,27 @@
 # lib/05-deploy.sh — Deploy Software Factory (nexus-api, nexus-console, MongoDB)
 # ==============================================================================
 
-# Resolve the image tag to use for a given Docker Hub repo.
+# Resolve the image tag to use for a given Docker Hub repository.
 # Priority: SF_IMAGE_TAG env var > :latest if it exists > most recent prod-* tag
 resolve_image_tag() {
   local docker_user="$1"
+  local repo_name="$2"
 
-  # Explicit override wins
+  # Explicit override wins for both API and console images.
   if [ -n "${SF_IMAGE_TAG:-}" ] && [ "$SF_IMAGE_TAG" != "latest" ]; then
     echo "$SF_IMAGE_TAG"
     return
   fi
 
-  # Check if :latest tag exists on Docker Hub for nexus-api
-  local check_url="https://hub.docker.com/v2/repositories/${docker_user}/nexus-api/tags/latest/"
+  # Check if :latest tag exists on Docker Hub for this repository.
+  local check_url="https://hub.docker.com/v2/repositories/${docker_user}/${repo_name}/tags/latest/"
   if curl -sf --max-time 8 "$check_url" &>/dev/null; then
     echo "latest"
     return
   fi
 
-  # Fetch the most recent prod-* tag from Docker Hub API
-  log_warn ":latest tag not found on Docker Hub — fetching most recent prod-* tag..."
-  local api_url="https://hub.docker.com/v2/repositories/${docker_user}/nexus-api/tags/?page_size=25&ordering=last_updated"
+  # Fetch the most recent prod-* tag from Docker Hub API.
+  local api_url="https://hub.docker.com/v2/repositories/${docker_user}/${repo_name}/tags/?page_size=25&ordering=last_updated"
   local latest_tag
   latest_tag=$(curl -sf --max-time 10 "$api_url" 2>/dev/null \
     | python3 -c "
@@ -33,17 +33,19 @@ tags = [r['name'] for r in data.get('results', []) if r['name'].startswith('prod
 print(tags[0] if tags else 'latest')
 " 2>/dev/null || echo "latest")
 
-  log_info "Auto-detected tag: $latest_tag"
   echo "$latest_tag"
 }
 
 deploy_software_factory() {
   log_step "Deploying Software Factory core services..."
 
-  # Resolve image tag (auto-detects if :latest doesn't exist on Docker Hub)
-  local image_tag
-  image_tag=$(resolve_image_tag "$SF_DOCKER_USERNAME")
-  log_info "Using image tag: $image_tag"
+  # Resolve image tags separately (API and console can publish different prod-* tags).
+  local api_image_tag
+  local console_image_tag
+  api_image_tag=$(resolve_image_tag "$SF_DOCKER_USERNAME" "nexus-api")
+  console_image_tag=$(resolve_image_tag "$SF_DOCKER_USERNAME" "nexus-console")
+  log_info "Using nexus-api image tag: $api_image_tag"
+  log_info "Using nexus-console image tag: $console_image_tag"
 
   # Create prod namespace if it doesn't exist
   kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f -
@@ -183,7 +185,7 @@ spec:
       serviceAccountName: default
       containers:
       - name: nexus-api
-        image: ${SF_DOCKER_USERNAME}/nexus-api:${image_tag}
+        image: ${SF_DOCKER_USERNAME}/nexus-api:${api_image_tag}
         ports:
         - containerPort: 8000
         env:
@@ -260,7 +262,7 @@ spec:
       ${pull_secret_block}
       containers:
       - name: nexus-console
-        image: ${SF_DOCKER_USERNAME}/nexus-console:${image_tag}
+        image: ${SF_DOCKER_USERNAME}/nexus-console:${console_image_tag}
         ports:
         - containerPort: 80
         resources:
