@@ -115,15 +115,18 @@ metadata:
   namespace: prod
   labels:
     app: datastore
+    environment: prod
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: datastore
+      environment: prod
   template:
     metadata:
       labels:
         app: datastore
+        environment: prod
     spec:
       containers:
       - name: mongodb
@@ -238,15 +241,18 @@ metadata:
   namespace: prod
   labels:
     app: nexus-api
+    environment: prod
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: nexus-api
+      environment: prod
   template:
     metadata:
       labels:
         app: nexus-api
+        environment: prod
     spec:
       ${pull_secret_block}
       serviceAccountName: default
@@ -362,15 +368,18 @@ metadata:
   namespace: prod
   labels:
     app: nexus-console
+    environment: prod
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: nexus-console
+      environment: prod
   template:
     metadata:
       labels:
         app: nexus-console
+        environment: prod
     spec:
       ${pull_secret_block}
       containers:
@@ -551,15 +560,18 @@ metadata:
   namespace: prod
   labels:
     app: datastore
+    environment: prod
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: datastore
+      environment: prod
   template:
     metadata:
       labels:
         app: datastore
+        environment: prod
     spec:
       containers:
       - name: mongodb
@@ -625,15 +637,18 @@ metadata:
   namespace: prod
   labels:
     app: nexus-api
+    environment: prod
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: nexus-api
+      environment: prod
   template:
     metadata:
       labels:
         app: nexus-api
+        environment: prod
     spec:
       ${pull_secret_block}
       serviceAccountName: default
@@ -703,15 +718,18 @@ metadata:
   namespace: prod
   labels:
     app: nexus-console
+    environment: prod
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: nexus-console
+      environment: prod
   template:
     metadata:
       labels:
         app: nexus-console
+        environment: prod
     spec:
       ${pull_secret_block}
       containers:

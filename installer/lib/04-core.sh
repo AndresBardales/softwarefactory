@@ -82,7 +82,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: ${SF_GIT_EMAIL}
+    email: ${SF_GIT_EMAIL:-admin@${SF_DOMAIN:-localhost}}
     privateKeySecretRef:
       name: letsencrypt-prod-key
     solvers:
