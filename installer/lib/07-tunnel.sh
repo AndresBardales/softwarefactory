@@ -168,10 +168,7 @@ except Exception:
           },
           {
             \"hostname\": \"*.${SF_DOMAIN}\",
-            \"service\": \"http://nexus-console.prod.svc.cluster.local:80\",
-            \"originRequest\": {
-              \"httpHostHeader\": \"\"
-            }
+            \"service\": \"http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80\"
           },
           {
             \"service\": \"http_status:404\"

@@ -195,7 +195,7 @@ spec:
   source:
     repoURL: ${_infra_git_url}
     targetRevision: main
-    path: argocd
+    path: argocd/bootstrap
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

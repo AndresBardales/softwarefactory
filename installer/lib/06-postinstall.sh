@@ -69,7 +69,13 @@ run_post_install() {
   "git_provider": "${SF_GIT_PROVIDER:-bitbucket}",
   "github_org": "${SF_GITHUB_ORG:-${SF_GIT_WORKSPACE}}",
   "github_token": "${SF_GIT_TOKEN}",
-  "github_is_org": false
+  "github_is_org": false,
+  "cloudflare_token": "${SF_CLOUDFLARE_TOKEN:-}",
+  "cloudflare_account_id": "${SF_CLOUDFLARE_ACCOUNT_ID:-}",
+  "cloudflare_tunnel_id": "${SF_CLOUDFLARE_TUNNEL_ID:-}",
+  "cloudflare_zone_id": "${SF_CLOUDFLARE_ZONE_ID:-}",
+  "vault_token": "${SF_VAULT_TOKEN:-}",
+  "vault_addr": "${SF_VAULT_ADDR:-}"
 }
 SEED
 )
