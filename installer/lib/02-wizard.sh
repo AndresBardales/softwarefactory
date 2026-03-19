@@ -67,7 +67,7 @@ run_wizard() {
   SF_CLOUDFLARE_ACCOUNT_ID=""
 
   if [ "$SF_MODE" = "cloud" ] || [ "$SF_MODE" = "hybrid" ]; then
-    prompt_value "Your domain name (e.g., futurefarms.mx)" "" SF_DOMAIN
+    prompt_value "Your domain name (e.g., yourdomain.com)" "" SF_DOMAIN
     SF_ENABLE_TLS=true
 
     if [ "$SF_MODE" = "hybrid" ]; then

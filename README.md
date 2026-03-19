@@ -109,5 +109,4 @@ MIT
 
 ## Links
 
-- Website: [open-source.futurefarms.mx](https://open-source.futurefarms.mx)
-- Built by [FutureFarms](https://futurefarms.mx)
+- GitHub: [github.com/AndresBardales/softwarefactory](https://github.com/AndresBardales/softwarefactory)

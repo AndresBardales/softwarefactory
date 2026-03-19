@@ -81,7 +81,7 @@ if curl -sf --max-time 5 "http://localhost:30081/health" &>/dev/null; then
   curl -sf --max-time 15 -X POST "http://localhost:30081/api/v1/setup/install" \
     -H "Content-Type: application/json" \
     -d "{\"mode\":\"${SF_MODE:-hybrid}\",\"domain\":\"${SF_DOMAIN:-}\",\"git_provider\":\"${_git_provider}\",\"git_username\":\"${SF_GIT_USER:-}\",\"git_token\":\"${SF_GIT_TOKEN:-}\",\"git_workspace\":\"${_git_workspace}\",\"github_org\":\"${_github_org}\",\"bitbucket_workspace\":\"${_bitbucket_workspace}\",\"dockerhub_username\":\"${SF_DOCKER_USER:-${SF_DOCKER_USERNAME:-}}\",\"dockerhub_token\":\"${SF_DOCKER_TOKEN:-}\",\"tailscale_client_id\":\"${SF_TAILSCALE_CLIENT_ID:-}\",\"tailscale_client_secret\":\"${SF_TAILSCALE_CLIENT_SECRET:-}\",\"tailscale_dns_suffix\":\"${SF_TAILSCALE_DNS_SUFFIX:-}\",\"cloudflare_token\":\"${SF_CLOUDFLARE_TOKEN:-}\",\"cloudflare_account_id\":\"${SF_CLOUDFLARE_ACCOUNT_ID:-}\",\"cloudflare_zone_id\":\"${SF_CLOUDFLARE_ZONE_ID:-}\",\"cloudflare_tunnel_id\":\"${SF_CLOUDFLARE_TUNNEL_ID:-}\",\"admin_user\":\"${SF_ADMIN_USER}\",\"admin_password\":\"${_ADMIN_PW}\",\"argocd_password\":\"${_ARGOCD_PW}\",\"vault_addr\":\"${_VAULT_ADDR}\",\"vault_token\":\"${_VAULT_TOKEN}\",\"vault_hostname\":\"${SF_VAULT_HOSTNAME:-}\",\"cluster_ssh_host\":\"${SF_CLUSTER_SSH_HOST:-}\"}" \
-    &>/dev/null && log_info "Setup state + admin user created ✓" || log_warn "Setup seed may already exist — skipping"
+    &>/dev/null && log_info "Platform config + admin user seeded ✓" || log_warn "API seed failed — config will need manual setup"
 else
   log_warn "API not reachable yet — admin user will be created on first login"
 fi
