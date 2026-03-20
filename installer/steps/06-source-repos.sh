@@ -484,7 +484,6 @@ if [ "$GIT_PROVIDER" = "github" ]; then
   log_step "Phase 5: Waiting for Docker images to be built..."
 
   # Only wait if code was actually pushed (repos have commits on main)
-  local ENCODED_TOKEN
   ENCODED_TOKEN=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${GIT_TOKEN}', safe=''))")
 
   api_ok=false
