@@ -401,6 +401,9 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
         for key in valid_keys:
             if key in body:
                 env_extra[key] = body[key]
+        # Derive KB_ENABLE_TLS from mode (cloud/hybrid = true, local = false)
+        mode = env_extra.get("KB_MODE", "local")
+        env_extra["KB_ENABLE_TLS"] = "true" if mode in ("cloud", "hybrid") else "false"
         run_step("04-credentials", env_extra)
         self._json_response(200, {"ok": True})
 

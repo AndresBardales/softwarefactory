@@ -845,7 +845,7 @@ create_ingress() {
   local tls_block=""
   local annotations="nginx.ingress.kubernetes.io/ssl-redirect: \"false\""
 
-  if [ "$KB_ENABLE_TLS" = "true" ]; then
+  if [ "${KB_ENABLE_TLS:-false}" = "true" ]; then
     annotations="cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: \"true\""
     tls_block="
