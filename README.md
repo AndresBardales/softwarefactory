@@ -7,7 +7,7 @@
 Run apps, databases, and automations on any Linux server.
 
 [![Release](https://img.shields.io/github/v/release/AndresBardales/softwarefactory?style=flat-square)](https://github.com/AndresBardales/softwarefactory/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
 </div>
@@ -174,7 +174,7 @@ Releases are published on [GitHub Releases](https://github.com/AndresBardales/so
 
 ## License
 
-[MIT](LICENSE) — use it, modify it, share it.
+[Apache 2.0](LICENSE) — use it, modify it, share it, including commercial use.
 
 ## Links
 
