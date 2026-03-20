@@ -1,0 +1,24 @@
+{
+  "latest": {
+    "channel": "stable",
+    "version": "0.1.0",
+    "tag": "v0.1.0-pre-launch",
+    "released": "2026-03-18",
+    "installer_url": "https://github.com/AndresBardales/softwarefactory/archive/refs/tags/v0.1.0-pre-launch.tar.gz",
+    "checksum_url": "https://github.com/AndresBardales/softwarefactory/releases/download/v0.1.0-pre-launch/checksums.sha256",
+    "changelog": "https://github.com/AndresBardales/softwarefactory/releases/tag/v0.1.0-pre-launch",
+    "minimum_required": "0.1.0"
+  },
+  "channels": {
+    "stable": "0.1.0",
+    "rc": "0.1.0"
+  },
+  "history": [
+    {
+      "version": "0.1.0",
+      "tag": "v0.1.0-pre-launch",
+      "channel": "stable",
+      "released": "2026-03-18"
+    }
+  ]
+}
