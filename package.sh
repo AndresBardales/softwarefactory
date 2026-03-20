@@ -41,7 +41,11 @@ log_error() { echo -e "${RED}[✗]${NC} $*"; }
 log_step()  { echo -e "${CYAN}[→]${NC} ${BOLD}$*${NC}"; }
 
 # repos to package — these are sibling directories in the workspace
-REPOS=("kaanbal-api" "kaanbal-console" "infra-gitops")
+REPOS=("kaanbal-api" "kaanbal-console" "infra-gitops" "kaanbal-templates")
+
+# Source directory overrides (when local dir name differs from repo name)
+declare -A REPO_SOURCE_DIR
+REPO_SOURCE_DIR[kaanbal-templates]="nexus-templates"
 
 # Current owner values — these get replaced with __PLACEHOLDER__ tokens in tarballs
 # so the installer can substitute the new user's values
@@ -90,7 +94,8 @@ templatize_dir() {
 # ==============================================================================
 package_repo() {
   local repo_name="$1"
-  local repo_path="$WORKSPACE/$repo_name"
+  local source_dir="${REPO_SOURCE_DIR[$repo_name]:-$repo_name}"
+  local repo_path="$WORKSPACE/$source_dir"
   local output_file="$OUTPUT_DIR/${repo_name}.tar.gz"
 
   if [ ! -d "$repo_path" ]; then
@@ -109,6 +114,7 @@ package_repo() {
     # Copy working tree (excluding .git and heavy dirs)
     rsync -a --exclude='.git' --exclude='node_modules' --exclude='__pycache__' \
       --exclude='venv' --exclude='.venv' --exclude='dist' --exclude='.env' \
+      --exclude='.terraform' --exclude='terraform.tfstate*' \
       "$repo_path/" "$tmp_repo/"
   else
     # Use git archive for clean committed state
@@ -150,8 +156,9 @@ mkdir -p "$OUTPUT_DIR"
 
 # Validate all repos exist before starting
 for repo in "${REPOS[@]}"; do
-  if [ ! -d "$WORKSPACE/$repo" ]; then
-    log_error "Required repo missing: $WORKSPACE/$repo"
+  source_dir="${REPO_SOURCE_DIR[$repo]:-$repo}"
+  if [ ! -d "$WORKSPACE/$source_dir" ]; then
+    log_error "Required repo missing: $WORKSPACE/$source_dir (for $repo)"
     log_error "All repos must be cloned as siblings in the workspace."
     exit 1
   fi

@@ -481,6 +481,7 @@ if [ "$GIT_PROVIDER" = "github" ]; then
   gh_create_repo "kaanbal-api" "Backend API (FastAPI + Python)"
   gh_create_repo "kaanbal-console" "Frontend UI (Vue 3 + Tailwind)"
   gh_create_repo "infra-gitops" "Infrastructure manifests & GitOps"
+  gh_create_repo "kaanbal-templates" "Template catalog (K8s manifests, Dockerfiles, CI/CD)"
 
   log_step "Phase 2: Configuring GitHub Actions secrets (before push)..."
   gh_configure_secrets "kaanbal-api" || log_warn "Some secrets not set for kaanbal-api — check GitHub Actions settings"
@@ -488,7 +489,7 @@ if [ "$GIT_PROVIDER" = "github" ]; then
   gh_configure_infra_secrets || log_warn "Some infra secrets not set — check GitHub Actions settings"
 
   log_step "Phase 3: Pushing source code..."
-  for repo in kaanbal-api kaanbal-console infra-gitops; do
+  for repo in kaanbal-api kaanbal-console infra-gitops kaanbal-templates; do
     if [ -f "$TEMPLATE_DIR/${repo}.tar.gz" ]; then
       gh_push_code "$repo" "$TEMPLATE_DIR/${repo}.tar.gz"
     else
@@ -529,9 +530,10 @@ elif [ "$GIT_PROVIDER" = "bitbucket" ]; then
   bb_create_repo "kaanbal-api" "Backend API (FastAPI + Python)"
   bb_create_repo "kaanbal-console" "Frontend UI (Vue 3 + Tailwind)"
   bb_create_repo "infra-gitops" "Infrastructure manifests & GitOps"
+  bb_create_repo "kaanbal-templates" "Template catalog (K8s manifests, Dockerfiles, CI/CD)"
 
   log_step "Phase 2: Pushing source code..."
-  for repo in kaanbal-api kaanbal-console infra-gitops; do
+  for repo in kaanbal-api kaanbal-console infra-gitops kaanbal-templates; do
     if [ -f "$TEMPLATE_DIR/${repo}.tar.gz" ]; then
       bb_push_code "$repo" "$TEMPLATE_DIR/${repo}.tar.gz"
     else

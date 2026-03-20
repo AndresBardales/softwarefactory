@@ -75,7 +75,8 @@ run_post_install() {
   "cloudflare_tunnel_id": "${KB_CLOUDFLARE_TUNNEL_ID:-}",
   "cloudflare_zone_id": "${KB_CLOUDFLARE_ZONE_ID:-}",
   "vault_token": "${KB_VAULT_TOKEN:-}",
-  "vault_addr": "${KB_VAULT_ADDR:-}"
+  "vault_addr": "${KB_VAULT_ADDR:-}",
+  "templates_repo": "kaanbal-templates"
 }
 SEED
 )
