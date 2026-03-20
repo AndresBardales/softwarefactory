@@ -4,6 +4,5 @@ tmpclaude-*
 installer/_old_cli_backup/
 installer/manifests/
 installer/modes/
-installer/templates/
 installer/scripts/
 conversacion.txt

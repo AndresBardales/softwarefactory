@@ -482,12 +482,27 @@ if [ "$GIT_PROVIDER" = "github" ]; then
   log_info "They will trigger automatically when code is pushed"
 
   log_step "Phase 5: Waiting for Docker images to be built..."
-  log_info "GitHub Actions are building Docker images. This takes 2-5 minutes..."
+
+  # Only wait if code was actually pushed (repos have commits on main)
+  local ENCODED_TOKEN
+  ENCODED_TOKEN=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${GIT_TOKEN}', safe=''))")
 
   api_ok=false
   console_ok=false
-  wait_for_docker_image "$DOCKER_USER" "kaanbal-api" && api_ok=true
-  wait_for_docker_image "$DOCKER_USER" "kaanbal-console" && console_ok=true
+
+  if git ls-remote --heads "https://${GIT_USER}:${ENCODED_TOKEN}@github.com/${GIT_WORKSPACE}/kaanbal-api.git" main 2>/dev/null | grep -q main; then
+    log_info "Code found in kaanbal-api — waiting for Docker image..."
+    wait_for_docker_image "$DOCKER_USER" "kaanbal-api" && api_ok=true
+  else
+    log_warn "No code in kaanbal-api — skipping image wait (templates may be missing)"
+  fi
+
+  if git ls-remote --heads "https://${GIT_USER}:${ENCODED_TOKEN}@github.com/${GIT_WORKSPACE}/kaanbal-console.git" main 2>/dev/null | grep -q main; then
+    log_info "Code found in kaanbal-console — waiting for Docker image..."
+    wait_for_docker_image "$DOCKER_USER" "kaanbal-console" && console_ok=true
+  else
+    log_warn "No code in kaanbal-console — skipping image wait (templates may be missing)"
+  fi
 
 elif [ "$GIT_PROVIDER" = "bitbucket" ]; then
 
