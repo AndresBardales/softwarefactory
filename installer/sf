@@ -167,176 +167,141 @@ cmd_config() {
 }
 
 cmd_upgrade() {
-  # -----------------------------------------------------------------------
-  # sf upgrade — Check versions manifest, download, validate, apply
-  # -----------------------------------------------------------------------
-  local VERSIONS_URL="https://raw.githubusercontent.com/AndresBardales/softwarefactory/main/versions.json"
-  local CHANNEL="${SF_UPDATE_CHANNEL:-stable}"
-  local CURRENT_VERSION="${SF_VERSION:-0.0.0}"
-
   echo -e "${BOLD}${CYAN}Software Factory Upgrade${NC}"
   echo ""
-  echo -e "  ${BOLD}Current version:${NC} v${CURRENT_VERSION}  (channel: ${CHANNEL})"
-  echo ""
 
-  # --- 1. Parse flags -------------------------------------------------------
-  local CHECK_ONLY=false
-  local FORCE=false
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --check)        CHECK_ONLY=true; shift ;;
-      --force)        FORCE=true; shift ;;
-      --channel=*)    CHANNEL="${1#*=}"; shift ;;
-      *) shift ;;
-    esac
-  done
+  local current_version="${SF_VERSION:-0.0.0}"
+  local sf_dir="${SF_INSTALL_DIR:-$HOME/softwarefactory}"
+  local repo_url="${SF_REPO_URL:-https://github.com/AndresBardales/softwarefactory}"
+  local manifest_url="${repo_url}/raw/main/versions.json"
+  local channel="${1:-stable}"
 
-  # --- 2. Fetch the versions manifest ---------------------------------------
-  echo -e "  ${BLUE}[→]${NC} Fetching versions manifest..."
+  # Step 1: Check for new version
+  echo -e "  ${BLUE}[→]${NC} Checking for updates (channel: ${channel})..."
   local manifest
-  manifest=$(curl -sf --max-time 15 "$VERSIONS_URL" 2>/dev/null) || {
-    echo -e "  ${RED}[✗]${NC} Could not reach the versions manifest."
-    echo -e "       Check internet: curl -s $VERSIONS_URL"
-    return 1
-  }
+  manifest=$(curl -sf --max-time 15 "$manifest_url" 2>/dev/null)
+  if [ -z "$manifest" ]; then
+    echo -e "  ${YELLOW}[!]${NC} Could not reach update server. Falling back to git pull..."
+    _upgrade_git_pull "$sf_dir"
+    return $?
+  fi
 
-  local latest_version
-  latest_version=$(echo "$manifest" | python3 -c \
-    "import sys,json; d=json.load(sys.stdin); print(d['channels'].get('$CHANNEL',''))" 2>/dev/null) || {
-    echo -e "  ${RED}[✗]${NC} Could not parse versions manifest."
-    return 1
-  }
+  local latest
+  latest=$(echo "$manifest" | python3 -c "import sys,json; m=json.load(sys.stdin); print(m.get('channels',{}).get('$channel', m.get('latest','')))" 2>/dev/null)
 
-  if [ -z "$latest_version" ]; then
-    echo -e "  ${YELLOW}[!]${NC} No release found for channel '${CHANNEL}'."
+  if [ -z "$latest" ]; then
+    echo -e "  ${RED}[✗]${NC} Could not determine latest version from manifest."
+    return 1
+  fi
+
+  echo -e "  Current:  v${current_version}"
+  echo -e "  Latest:   v${latest}"
+
+  if [ "$current_version" = "$latest" ]; then
+    echo ""
+    echo -e "  ${GREEN}[✓]${NC} Already running the latest version."
+    _upgrade_images
     return 0
   fi
 
-  echo -e "  ${BOLD}Latest ($CHANNEL):${NC}  v${latest_version}"
+  # Step 2: Get download URL and checksum
+  local download_url checksum
+  download_url=$(echo "$manifest" | python3 -c "import sys,json; print(json.load(sys.stdin)['releases']['$latest']['download'])" 2>/dev/null)
+  checksum=$(echo "$manifest" | python3 -c "import sys,json; print(json.load(sys.stdin)['releases']['$latest']['sha256'])" 2>/dev/null)
+
+  if [ -z "$download_url" ]; then
+    echo -e "  ${YELLOW}[!]${NC} No download URL for v${latest}. Falling back to git pull..."
+    _upgrade_git_pull "$sf_dir"
+    return $?
+  fi
+
+  # Step 3: Download
   echo ""
+  echo -e "  ${BLUE}[→]${NC} Downloading v${latest}..."
+  local tmp_dir
+  tmp_dir=$(mktemp -d)
+  local bundle_file="$tmp_dir/softwarefactory-v${latest}.tar.gz"
 
-  # --- 3. Compare versions --------------------------------------------------
-  if [ "$CURRENT_VERSION" = "$latest_version" ] && [ "$FORCE" = "false" ]; then
-    echo -e "  ${GREEN}[✓]${NC} Already up to date!"
-    return 0
-  fi
-
-  if [ "$CHECK_ONLY" = "true" ]; then
-    echo -e "  ${YELLOW}[!]${NC} New version available: v${latest_version}"
-    echo -e "       Run 'sf upgrade' to apply."
-    return 0
-  fi
-
-  echo -e "  ${YELLOW}[!]${NC} Upgrading: v${CURRENT_VERSION} → v${latest_version}"
-  echo ""
-
-  # --- 4. Get installer URL from manifest -----------------------------------
-  local installer_url
-  installer_url=$(echo "$manifest" | python3 -c \
-    "import sys,json; d=json.load(sys.stdin); print(d['latest']['installer_url'])" 2>/dev/null) || {
-    echo -e "  ${RED}[✗]${NC} Could not parse installer URL from manifest."
-    return 1
-  }
-
-  local checksum_url
-  checksum_url=$(echo "$manifest" | python3 -c \
-    "import sys,json; d=json.load(sys.stdin); print(d['latest'].get('checksum_url',''))" 2>/dev/null || echo "")
-
-  # --- 5. Download new installer --------------------------------------------
-  local tmpdir
-  tmpdir=$(mktemp -d /tmp/sf-upgrade-XXXXXX)
-  trap "rm -rf '$tmpdir'" EXIT
-
-  echo -e "  ${BLUE}[→]${NC} Downloading installer v${latest_version}..."
-  if ! curl -sL --max-time 120 "$installer_url" -o "$tmpdir/installer.tar.gz"; then
-    echo -e "  ${RED}[✗]${NC} Download failed. Check your internet connection."
+  if ! curl -fL --max-time 120 -o "$bundle_file" "$download_url" 2>/dev/null; then
+    echo -e "  ${RED}[✗]${NC} Download failed."
+    rm -rf "$tmp_dir"
     return 1
   fi
 
-  # --- 6. Validate checksum (if available) ----------------------------------
-  if [ -n "$checksum_url" ]; then
-    echo -e "  ${BLUE}[→]${NC} Validating checksum..."
-    if curl -sL --max-time 30 "$checksum_url" -o "$tmpdir/checksums.sha256" 2>/dev/null; then
-      pushd "$tmpdir" > /dev/null
-      if sha256sum --check --status checksums.sha256 2>/dev/null; then
-        echo -e "  ${GREEN}[✓]${NC} Checksum valid."
-      else
-        echo -e "  ${RED}[✗]${NC} Checksum mismatch! Aborting for safety."
-        popd > /dev/null
-        return 1
-      fi
-      popd > /dev/null
-    else
-      echo -e "  ${YELLOW}[!]${NC} Checksum file not available — skipping validation."
+  # Step 4: Verify checksum
+  if [ -n "$checksum" ]; then
+    echo -e "  ${BLUE}[→]${NC} Verifying checksum..."
+    local actual_checksum
+    actual_checksum=$(sha256sum "$bundle_file" | awk '{print $1}')
+    if [ "$actual_checksum" != "$checksum" ]; then
+      echo -e "  ${RED}[✗]${NC} Checksum mismatch! Expected: ${checksum:0:16}... Got: ${actual_checksum:0:16}..."
+      echo -e "  ${RED}    Download may be corrupted. Aborting.${NC}"
+      rm -rf "$tmp_dir"
+      return 1
     fi
+    echo -e "  ${GREEN}[✓]${NC} Checksum verified."
   fi
 
-  # --- 7. Backup current installer ------------------------------------------
-  local sf_root
-  sf_root="$(cd "$(dirname "$0")/.." && pwd)"
-
-  local backup_dir
-  backup_dir="${sf_root%/softwarefactory}/sf-backup-v${CURRENT_VERSION}-$(date +%Y%m%d%H%M%S)"
-
-  echo -e "  ${BLUE}[→]${NC} Backing up current installer to:"
-  echo -e "       $backup_dir"
-  cp -r "$sf_root" "$backup_dir" 2>/dev/null || {
-    echo -e "  ${YELLOW}[!]${NC} Could not create backup — upgrade continues but rollback will be manual."
-  }
-
-  # --- 8. Extract and apply -------------------------------------------------
-  echo -e "  ${BLUE}[→]${NC} Extracting new version..."
-  tar -xzf "$tmpdir/installer.tar.gz" -C "$tmpdir" 2>/dev/null || {
-    echo -e "  ${RED}[✗]${NC} Failed to extract archive."
-    return 1
-  }
-
-  # Find extracted dir (GitHub archives like softwarefactory-0.2.0/)
-  local extracted_dir
-  extracted_dir=$(find "$tmpdir" -maxdepth 1 -mindepth 1 -type d | head -1)
-
-  if [ -z "$extracted_dir" ]; then
-    echo -e "  ${RED}[✗]${NC} Archive had unexpected structure."
-    return 1
+  # Step 5: Backup current version
+  echo -e "  ${BLUE}[→]${NC} Backing up current version..."
+  local backup_dir="$sf_dir/.backup-v${current_version}"
+  if [ -d "$sf_dir/installer" ]; then
+    cp -a "$sf_dir/installer" "$backup_dir" 2>/dev/null || true
   fi
 
+  # Step 6: Apply update
   echo -e "  ${BLUE}[→]${NC} Applying update..."
-  rsync -a --exclude='.git' --exclude='installer/templates/' \
-    "${extracted_dir}/" "${sf_root}/" 2>/dev/null || {
-    echo -e "  ${RED}[✗]${NC} Failed to apply update."
-    echo -e "       Rollback: cp -r ${backup_dir} ${sf_root}"
-    return 1
-  }
+  tar -xzf "$bundle_file" -C "$sf_dir" --strip-components=1 2>/dev/null
+  rm -rf "$tmp_dir"
 
-  # --- 9. Update stored version in config -----------------------------------
+  # Step 7: Update version in config
   if [ -f "$SF_CONFIG" ]; then
-    if grep -q "^SF_VERSION=" "$SF_CONFIG" 2>/dev/null; then
-      sed -i "s/^SF_VERSION=.*/SF_VERSION=${latest_version}/" "$SF_CONFIG"
+    if grep -q "^SF_VERSION=" "$SF_CONFIG"; then
+      sed -i "s/^SF_VERSION=.*/SF_VERSION=\"${latest}\"/" "$SF_CONFIG"
     else
-      echo "SF_VERSION=${latest_version}" >> "$SF_CONFIG"
+      echo "SF_VERSION=\"${latest}\"" >> "$SF_CONFIG"
     fi
   fi
 
-  # --- 10. Restart core platform services -----------------------------------
-  echo -e "  ${BLUE}[→]${NC} Restarting platform services..."
-  local docker_user="${SF_DOCKER_USER:-${SF_DOCKER_USERNAME:-}}"
-  if [ -n "$docker_user" ]; then
-    kubectl -n prod rollout restart deployment/nexus-api deployment/nexus-console 2>/dev/null || true
+  # Step 8: Update CLI
+  if [ -f "$sf_dir/installer/sf" ]; then
+    sudo cp "$sf_dir/installer/sf" /usr/local/bin/sf 2>/dev/null
+    sudo chmod +x /usr/local/bin/sf 2>/dev/null
   fi
 
-  # --- 11. Done -------------------------------------------------------------
+  # Step 9: Upgrade running images
+  _upgrade_images
+
   echo ""
-  echo -e "  ${GREEN}[✓]${NC} Upgraded successfully to v${latest_version}"
+  echo -e "  ${GREEN}[✓]${NC} Upgraded to v${latest} successfully!"
+  echo -e "  Backup at: $backup_dir"
+  echo -e "  Run 'sf status' to verify."
+}
+
+_upgrade_git_pull() {
+  local sf_dir="$1"
+  if [ -d "$sf_dir/.git" ]; then
+    echo -e "  ${BLUE}[→]${NC} Pulling latest from Git..."
+    cd "$sf_dir" && git pull origin main 2>/dev/null
+    echo -e "  ${GREEN}[✓]${NC} Updated from Git."
+    _upgrade_images
+    return 0
+  else
+    echo -e "  ${RED}[✗]${NC} No git repo found at $sf_dir. Clone fresh:"
+    echo -e "      git clone https://github.com/AndresBardales/softwarefactory.git"
+    return 1
+  fi
+}
+
+_upgrade_images() {
+  local docker_user="${SF_DOCKER_USER:-${SF_DOCKER_USERNAME:-}}"
+  if [ -z "$docker_user" ]; then
+    return 0
+  fi
   echo ""
-  echo -e "  ${BOLD}Rollback:${NC}"
-  echo -e "    cp -r ${backup_dir} ${sf_root}"
-  echo -e "    sf status"
-  echo ""
-  echo -e "  ${BOLD}Changelog:${NC}"
-  local changelog
-  changelog=$(echo "$manifest" | python3 -c \
-    "import sys,json; d=json.load(sys.stdin); print(d['latest'].get('changelog',''))" 2>/dev/null || echo "")
-  [ -n "$changelog" ] && echo -e "    $changelog"
+  echo -e "  ${BLUE}[→]${NC} Restarting platform services with latest images..."
+  kubectl -n prod rollout restart deployment/nexus-api deployment/nexus-console 2>/dev/null || true
+  echo -e "  ${GREEN}[✓]${NC} Services restarting. Pods will pull latest images."
 }
 
 cmd_add_worker() {
@@ -360,35 +325,29 @@ cmd_add_worker() {
 
 cmd_help() {
   cat <<HELP
-${BOLD}Software Factory CLI v${SF_VERSION:-0.1.0}${NC}
+${BOLD}Software Factory CLI v${SF_VERSION:-1.0.0}${NC}
 
 ${BOLD}Usage:${NC} sf <command> [options]
 
 ${BOLD}Commands:${NC}
-  install                 Install Software Factory (interactive wizard)
-  status                  Show cluster health, nodes, and services
-  apps                    List all deployed applications
-  logs <app>              View logs for an app (--env, --follow)
-  config                  Show current configuration
-  upgrade                 Upgrade to latest release (channel: stable)
-  upgrade --check         Check for new version without installing
-  upgrade --channel=rc    Use a specific channel (stable, rc)
-  upgrade --force         Re-apply current version (useful after rollback)
-  add-worker              Add a cloud worker node (cloud/hybrid)
-  uninstall               Remove Software Factory
-  help                    Show this help
+  install           Install Software Factory (interactive wizard)
+  status            Show cluster health, nodes, and services
+  apps              List all deployed applications
+  logs <app>        View logs for an app (--env, --follow)
+  config            Show current configuration
+  upgrade           Pull latest images and restart services
+  add-worker        Add a cloud worker node (cloud/hybrid)
+  uninstall         Remove Software Factory
+  help              Show this help
 
 ${BOLD}Examples:${NC}
-  sf status                       Check everything is running
-  sf apps                         See your deployed apps
-  sf logs my-api --follow         Stream logs from my-api
-  sf upgrade                      Update to latest stable version
-  sf upgrade --check              Check for updates without applying
-  sf upgrade --channel=rc         Try a release candidate
+  sf status                   Check everything is running
+  sf apps                     See your deployed apps
+  sf logs my-api --follow     Stream logs from my-api
+  sf upgrade                  Update to latest version
 
 ${BOLD}Environment:${NC}
-  SF_HOME             Config directory (default: ~/.software-factory)
-  SF_UPDATE_CHANNEL   Default upgrade channel (default: stable)
+  SF_HOME     Config directory (default: ~/.software-factory)
 
 HELP
 }
@@ -408,7 +367,7 @@ case "$command" in
   config)     cmd_config ;;
   upgrade)    cmd_upgrade "$@" ;;
   add-worker) cmd_add_worker ;;
-  --version|-v) echo "Software Factory v${SF_VERSION:-0.1.0}" ;;
+  version|--version|-v) echo "Software Factory v${SF_VERSION:-0.0.0}" ;;
   help|--help|-h) cmd_help ;;
   *)
     echo -e "${RED}Unknown command: $command${NC}"

@@ -1,204 +1,161 @@
+# ==============================================================================
+# Software Factory — Release Pipeline
+# ==============================================================================
+# Triggers on version tags (v*.*.*) and creates a GitHub Release with:
+#   - Release notes from conventional commits
+#   - Installer bundle (softwarefactory-vX.Y.Z.tar.gz)
+#   - SHA256 checksum file
+#
+# Manual trigger also supported for pre-release builds.
+# ==============================================================================
+
 name: Release
 
-# Triggered when a version tag is pushed: v1.2.3 or v1.2.3-rc.1
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v[0-9]+.[0-9]+.[0-9]+*'   # v1.0.0, v1.0.0-rc.1, etc.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.2.0-rc.1)'
+        required: true
 
 permissions:
-  contents: write  # needed to create GitHub Release and push versions.json
+  contents: write
 
 jobs:
   release:
-    name: Build & Publish Release
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Fetch all history so package.sh can use git archive
-          fetch-depth: 0
-          # Use GITHUB_TOKEN to allow push back of versions.json
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0   # Full history for changelog generation
 
-      # ---------------------------------------------------------------
-      # 1. Determine version metadata
-      # ---------------------------------------------------------------
-      - name: Extract version from tag
-        id: meta
+      - name: Determine version
+        id: version
         run: |
-          TAG="${GITHUB_REF_NAME}"               # e.g. v0.2.0 or v0.2.0-rc.1
-          VERSION="${TAG#v}"                      # strip leading 'v'
-
-          # Pre-release detection
-          if echo "$VERSION" | grep -qE '(pre|rc|alpha|beta)'; then
-            PRERELEASE=true
-            CHANNEL="rc"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.tag }}"
           else
-            PRERELEASE=false
-            CHANNEL="stable"
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+          # Detect pre-release (contains hyphen: v1.0.0-rc.1)
+          if [[ "$TAG" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
-          echo "channel=$CHANNEL" >> "$GITHUB_OUTPUT"
-          echo "released=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
-
-      # ---------------------------------------------------------------
-      # 2. Install rsync (used by package.sh --dirty flag)
-      # ---------------------------------------------------------------
-      - name: Install rsync
-        run: sudo apt-get install -y rsync
-
-      # ---------------------------------------------------------------
-      # 3. Generate templatized tarballs
-      # ---------------------------------------------------------------
-      - name: Package sibling repos
+      - name: Stamp version in sf CLI
         run: |
-          # Set workspace root so package.sh can find sibling repos
-          # In the release runner, sibling repos are NOT present — we skip
-          # the tarball generation and create placeholder info instead.
-          #
-          # If you want real tarballs in the release, run package.sh locally
-          # and commit the output as a build step that downloads them, OR
-          # use a monorepo approach where all repos are submodules.
-          #
-          # For now we package the installer itself as the main release asset.
-          tar -czf softwarefactory-${{ steps.meta.outputs.version }}.tar.gz \
+          sed -i "s/SF_VERSION:-1.0.0/SF_VERSION:-${{ steps.version.outputs.version }}/" installer/sf
+
+      - name: Build installer bundle
+        run: |
+          BUNDLE_NAME="softwarefactory-${{ steps.version.outputs.tag }}"
+
+          # Create a clean archive of the installer (no .git, no dev files)
+          mkdir -p dist
+          tar -czf "dist/${BUNDLE_NAME}.tar.gz" \
             --exclude='.git' \
-            --exclude='installer/templates' \
-            --exclude='installer/_old_cli_backup' \
-            --exclude='installer/manifests' \
-            --exclude='installer/modes' \
-            --exclude='installer/scripts' \
+            --exclude='.github' \
+            --exclude='dist' \
             --exclude='*.log' \
-            .
+            --exclude='.env' \
+            --transform "s,^,softwarefactory/," \
+            install.sh package.sh README.md LICENSE CONTRIBUTING.md GUIDE.md \
+            installer/
 
-      # ---------------------------------------------------------------
-      # 4. Generate checksum
-      # ---------------------------------------------------------------
-      - name: Generate SHA-256 checksums
+          # Generate checksum
+          cd dist
+          sha256sum "${BUNDLE_NAME}.tar.gz" > "${BUNDLE_NAME}.sha256"
+
+      - name: Generate changelog
+        id: changelog
         run: |
-          sha256sum softwarefactory-${{ steps.meta.outputs.version }}.tar.gz \
-            > checksums.sha256
-          cat checksums.sha256
+          # Get previous tag
+          PREV_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -2 | tail -1)
+          CURRENT_TAG="${{ steps.version.outputs.tag }}"
 
-      # ---------------------------------------------------------------
-      # 5. Create GitHub Release with assets
-      # ---------------------------------------------------------------
+          if [ -z "$PREV_TAG" ] || [ "$PREV_TAG" = "$CURRENT_TAG" ]; then
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+
+          echo "## What's Changed" > changelog.md
+          echo "" >> changelog.md
+
+          # Group commits by type
+          for type_label in "feat:Features" "fix:Bug Fixes" "docs:Documentation" "refactor:Refactoring" "chore:Maintenance"; do
+            TYPE="${type_label%%:*}"
+            LABEL="${type_label##*:}"
+            COMMITS=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s (%h)" --grep="^${TYPE}" 2>/dev/null || true)
+            if [ -n "$COMMITS" ]; then
+              echo "### ${LABEL}" >> changelog.md
+              echo "$COMMITS" >> changelog.md
+              echo "" >> changelog.md
+            fi
+          done
+
+          # Catch-all for non-conventional commits
+          OTHER=$(git log "${PREV_TAG}..HEAD" --pretty=format:"- %s (%h)" --invert-grep --grep="^feat\|^fix\|^docs\|^refactor\|^chore" 2>/dev/null || true)
+          if [ -n "$OTHER" ]; then
+            echo "### Other Changes" >> changelog.md
+            echo "$OTHER" >> changelog.md
+            echo "" >> changelog.md
+          fi
+
+          echo "---" >> changelog.md
+          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ steps.version.outputs.tag }}" >> changelog.md
+
       - name: Create GitHub Release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: "Software Factory ${{ steps.meta.outputs.tag }}"
-          draft: false
-          prerelease: ${{ steps.meta.outputs.prerelease }}
-          generate_release_notes: true
-          body: |
-            ## Install
-
-            ```bash
-            git clone https://github.com/AndresBardales/softwarefactory.git --branch ${{ steps.meta.outputs.tag }}
-            cd softwarefactory
-            bash install.sh
-            ```
-
-            Or download the installer archive below and run:
-            ```bash
-            tar -xzf softwarefactory-${{ steps.meta.outputs.version }}.tar.gz
-            cd softwarefactory
-            bash install.sh
-            ```
-
-            ## Upgrade existing install
-
-            ```bash
-            sf upgrade
-            ```
-
-            ## What's New
-
-            See the auto-generated release notes below.
-
-            ## Checksums (SHA-256)
-
-            ```
-            $(cat checksums.sha256)
-            ```
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Software Factory ${{ steps.version.outputs.tag }}
+          body_path: changelog.md
+          prerelease: ${{ steps.version.outputs.prerelease }}
           files: |
-            softwarefactory-${{ steps.meta.outputs.version }}.tar.gz
-            checksums.sha256
+            dist/softwarefactory-${{ steps.version.outputs.tag }}.tar.gz
+            dist/softwarefactory-${{ steps.version.outputs.tag }}.sha256
 
-      # ---------------------------------------------------------------
-      # 6. Update versions.json in main branch
-      # ---------------------------------------------------------------
-      - name: Update versions.json
+      - name: Update versions.json (stable releases only)
+        if: steps.version.outputs.prerelease == 'false'
         run: |
-          VERSION="${{ steps.meta.outputs.version }}"
-          TAG="${{ steps.meta.outputs.tag }}"
-          CHANNEL="${{ steps.meta.outputs.channel }}"
-          RELEASED="${{ steps.meta.outputs.released }}"
-          REPO="https://github.com/AndresBardales/softwarefactory"
+          # Update the versions manifest for sf upgrade
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          CHECKSUM=$(cat dist/softwarefactory-${TAG}.sha256 | awk '{print $1}')
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/softwarefactory-${TAG}.tar.gz"
 
-          # Rebuild versions.json
-          python3 - <<'PYEOF'
-import json, os
+          cat > versions.json <<EOF
+          {
+            "latest": "${VERSION}",
+            "channels": {
+              "stable": "${VERSION}"
+            },
+            "releases": {
+              "${VERSION}": {
+                "tag": "${TAG}",
+                "date": "${DATE}",
+                "download": "${DOWNLOAD_URL}",
+                "sha256": "${CHECKSUM}",
+                "min_upgrade_from": "0.1.0",
+                "changelog": "https://github.com/${{ github.repository }}/releases/tag/${TAG}"
+              }
+            }
+          }
+          EOF
 
-v = os.environ.get('VERSION', '')
-tag = os.environ.get('TAG', '')
-channel = os.environ.get('CHANNEL', 'stable')
-released = os.environ.get('RELEASED', '')
-repo = os.environ.get('REPO', '')
-
-try:
-    with open('versions.json') as f:
-        data = json.load(f)
-except Exception:
-    data = {"channels": {}, "history": []}
-
-data["latest"] = {
-    "channel": channel,
-    "version": v,
-    "tag": tag,
-    "released": released,
-    "installer_url": f"{repo}/archive/refs/tags/{tag}.tar.gz",
-    "checksum_url": f"{repo}/releases/download/{tag}/checksums.sha256",
-    "changelog": f"{repo}/releases/tag/{tag}",
-    "minimum_required": "0.1.0"
-}
-
-data["channels"][channel] = v
-
-# Keep history (last 20)
-history = data.get("history", [])
-history.insert(0, {"version": v, "tag": tag, "channel": channel, "released": released})
-data["history"] = history[:20]
-
-with open('versions.json', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-
-print(f"versions.json updated: {v} ({channel})")
-PYEOF
-        env:
-          VERSION: ${{ steps.meta.outputs.version }}
-          TAG: ${{ steps.meta.outputs.tag }}
-          CHANNEL: ${{ steps.meta.outputs.channel }}
-          RELEASED: ${{ steps.meta.outputs.released }}
-          REPO: https://github.com/AndresBardales/softwarefactory
-
-      - name: Commit updated versions.json
-        run: |
+          # Commit the updated versions.json back to main
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # Commit to main branch (not tag)
-          git fetch origin main
           git checkout main
           git add versions.json
-          git diff --staged --quiet && echo "No changes to versions.json" && exit 0
-          git commit -m "chore: update versions.json → ${{ steps.meta.outputs.tag }}"
-          git push origin main
+          git commit -m "chore: update versions.json for ${TAG}" || true
+          git push origin main || true

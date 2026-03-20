@@ -1,232 +1,127 @@
 # Contributing to Software Factory
 
-Thank you for your interest in improving Software Factory! This guide explains how to propose changes, report issues, and get your contributions merged.
+Thanks for your interest in improving Software Factory! This guide will help you get started.
 
----
-
-## Table of Contents
-
-1. [Getting Started](#getting-started)
-2. [Development Setup](#development-setup)
-3. [Branching & Commit Convention](#branching--commit-convention)
-4. [Submitting a Pull Request](#submitting-a-pull-request)
-5. [Issue Reporting](#issue-reporting)
-6. [Code Style](#code-style)
-7. [Testing Your Change](#testing-your-change)
-
----
-
-## Getting Started
-
-1. **Fork** the repository on GitHub
-2. **Clone** your fork:
-   ```bash
-   git clone https://github.com/<your-username>/softwarefactory.git
-   cd softwarefactory
-   ```
-3. **Add upstream** remote:
-   ```bash
-   git remote add upstream https://github.com/AndresBardales/softwarefactory.git
-   ```
-4. Keep your fork in sync before starting new work:
-   ```bash
-   git fetch upstream
-   git rebase upstream/main
-   ```
-
----
-
-## Development Setup
-
-### Prerequisites
-
-- Ubuntu 22.04+ (native, WSL2, or VM) — the installer is bash-only
-- A VPS or VM with 4 GB RAM + 20 GB disk for end-to-end testing
-- `git`, `curl`, `openssl` on the target machine
-- A GitHub account and a Docker Hub account (free tiers work)
-
-### Run the installer in development
+## Quick Start for Contributors
 
 ```bash
-# On your test VPS (not your laptop)
-git clone https://github.com/<your-fork>/softwarefactory.git
+# 1. Fork the repo on GitHub
+# 2. Clone your fork
+git clone https://github.com/YOUR-USERNAME/softwarefactory.git
 cd softwarefactory
-bash install.sh
+
+# 3. Create a feature branch
+git checkout -b feat/my-improvement
+
+# 4. Make your changes, then commit
+git add .
+git commit -m "feat: add cool new feature"
+
+# 5. Push and open a Pull Request
+git push origin feat/my-improvement
 ```
 
-Open `http://<vps-ip>:3000` with the token printed in the terminal.
+Then open a PR at [github.com/AndresBardales/softwarefactory](https://github.com/AndresBardales/softwarefactory/pulls).
 
-### Backend / Frontend changes
+## Commit Convention
 
-For changes to nexus-api or nexus-console, see their respective repos:
-- [nexus-api](https://github.com/AndresBardales/nexus-api)
-- [nexus-console](https://github.com/AndresBardales/nexus-console)
+We use [Conventional Commits](https://www.conventionalcommits.org/) to automate changelogs and versioning:
 
-Those repos follow the same process: fork → branch → PR.
-
----
-
-## Branching & Commit Convention
-
-### Branch names
-
-```
-<type>/<short-slug>
-```
-
-Examples:
-- `feat/add-mysql-template`
-- `fix/wizard-token-expiry`
-- `docs/improve-install-guide`
-- `chore/update-k3s-version`
-
-### Commit messages
-
-We follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-<type>: <summary>
-
-[optional body]
-
-[optional footer: BREAKING CHANGE: ...]
-```
-
-**Types:**
-| Type | When to use | Version impact |
-|------|-------------|----------------|
-| `feat` | New feature | MINOR |
-| `fix` | Bug fix | PATCH |
-| `docs` | Documentation only | none |
-| `chore` | Maintenance, deps, tooling | none |
-| `refactor` | Code restructure (no behavior change) | none |
-| `test` | Tests only | none |
-| `perf` | Performance improvement | PATCH |
-
-`BREAKING CHANGE:` in the footer triggers a MAJOR version bump.
+| Prefix | When to use | Version bump |
+|--------|-------------|-------------|
+| `feat:` | New feature or capability | MINOR |
+| `fix:` | Bug fix | PATCH |
+| `docs:` | Documentation only | PATCH |
+| `refactor:` | Code change that doesn't fix or add | — |
+| `chore:` | Build, CI, tooling | — |
+| `BREAKING CHANGE:` | Incompatible change (in body) | MAJOR |
 
 **Examples:**
 ```
-feat: add postgres template to catalog
-
-fix: wizard fails when Tailscale key contains special chars
-
-docs: add Hetzner VPS setup to INSTALL-GUIDE
-
-feat!: change installer step numbering
-BREAKING CHANGE: step 07 is now step 08 in all scripts
+feat: add PostgreSQL template to catalog
+fix: installer hangs on step 06 when Git token has special chars
+docs: add troubleshooting section for Tailscale DNS
+chore: update K3s version to v1.30
 ```
 
----
+## What You Can Contribute
 
-## Submitting a Pull Request
+### Templates (Easiest)
+Add new app/database templates to `installer/` or the template catalog. See [nexus-templates](https://github.com/AndresBardales/nexus-templates) for the schema.
 
-1. Create your branch from the latest `main`:
-   ```bash
-   git checkout -b feat/my-feature upstream/main
-   ```
+### Installer Improvements
+- New install step or mode
+- Better error handling
+- Support for more Linux distros
+- Localization (i18n)
 
-2. Make your changes. Keep each PR focused on **one thing**.
+### Dashboard (nexus-console)
+- UI/UX improvements
+- New views or widgets
+- Accessibility fixes
 
-3. Test your change end-to-end (see [Testing Your Change](#testing-your-change)).
+### API (nexus-api)
+- New endpoints
+- Performance improvements
+- Additional provider integrations
 
-4. Push and open a PR against `AndresBardales/softwarefactory:main`:
-   ```bash
-   git push origin feat/my-feature
-   # Then open PR on GitHub
-   ```
+### Documentation
+- Fix typos, improve clarity
+- Add guides for specific use cases
+- Translate to other languages
 
-5. Fill in the PR template — provide validation evidence (screenshots, command output, links).
+## Development Setup
 
-6. A maintainer will review within 2-3 business days.
+### Testing the installer locally
 
-### What makes a good PR
+You can test in a VM or WSL2 (Ubuntu 22.04+):
 
-- **Small scope** — one feature or bug fix per PR
-- **Evidence** — show it works (terminal output, screenshot)
-- **Clean commits** — squash "WIP" commits before submitting
-- **Documentation** — if you add a new step or feature, update `README.md` or `INSTALL-GUIDE.md`
+```bash
+# Option A: Full install (needs 4GB RAM VM)
+bash install.sh
 
----
+# Option B: Just test the wizard (no K8s changes)
+bash install.sh --dry-run   # (planned)
+```
 
-## Issue Reporting
+### Testing individual steps
 
-Before opening a new issue, search existing issues to avoid duplicates.
+Each step can be sourced and tested independently:
 
-**Bug reports** should include:
-- OS version and installation mode (local/cloud/hybrid)
-- Installer step where the failure occurred
-- Error message or log excerpt
-- Steps to reproduce
+```bash
+source installer/lib/00-common.sh
+source installer/lib/01-preflight.sh
+check_system_requirements
+```
 
-**Feature requests** should include:
-- Use case (why is this needed?)
-- Proposed behavior
-- Any alternative solutions considered
+## Pull Request Guidelines
 
----
+1. **One PR = one logical change.** Don't mix features with refactors.
+2. **Test on a clean Ubuntu VM** if your change touches the install flow.
+3. **Update documentation** if you add or change behavior.
+4. **Keep PR description clear**: what changed, why, how to test.
+5. **Screenshots welcome** for UI changes.
 
 ## Code Style
 
-### Bash (installer scripts)
+- **Shell scripts**: Follow existing patterns. Use `set -euo pipefail`. Functions prefixed by purpose (`log_`, `check_`, `deploy_`).
+- **Python (nexus-api)**: Black formatter, type hints where practical.
+- **Vue/JS (nexus-console)**: Composition API, Tailwind CSS.
 
-- Use `set -euo pipefail` at the top of every script
-- Use `log_info`, `log_warn`, `log_error` helper functions from `lib/00-common.sh`
-- Prefer `local` variables inside functions
-- Quote all variable expansions: `"$VAR"` not `$VAR`
-- No hardcoded values — use `SF_*` config variables or placeholders (`__DOMAIN__`, `__WORKSPACE__`)
+## Reporting Issues
 
-### Python (nexus-api)
+Use [GitHub Issues](https://github.com/AndresBardales/softwarefactory/issues). Include:
 
-- Follow PEP 8
-- Run `ruff check .` before committing
-- Keep endpoints thin — logic in service layer, not router
+- **OS and version** (e.g., Ubuntu 22.04 on Contabo VPS)
+- **Install mode** (local / cloud / hybrid)
+- **Step that failed** (e.g., "Step 06 — Source Repos")
+- **Logs**: paste relevant lines from the dashboard or terminal
+- **Expected vs actual behavior**
 
-### Vue 3 (nexus-console)
+## Code of Conduct
 
-- Composition API with `<script setup>`
-- Tailwind CSS utility classes — no inline styles
-- No hardcoded domains/URLs — use `src/config.js`
-
----
-
-## Testing Your Change
-
-### Installer changes
-
-Run a clean install on a fresh VM/VPS:
-```bash
-# Clean state
-sudo bash installer/steps/00-clean-install.sh
-
-# Run full install
-bash install.sh
-```
-
-Verify:
-- [ ] All 11 steps complete without errors
-- [ ] `http://<ip>:30080/setup` loads
-- [ ] Admin login works
-- [ ] One app deploys successfully (use a Vue or FastAPI template)
-
-### Checking pre-flight only
-
-```bash
-bash installer/steps/01-system-check.sh
-```
-
-### Template changes
-
-```bash
-# Validate catalog JSON
-python3 -c "import json; json.load(open('nexus-templates/catalog.json'))"
-```
-
----
+Be respectful. We're building tools to help developers — everyone is welcome regardless of experience level. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Questions?
 
-Open a [GitHub Discussion](https://github.com/AndresBardales/softwarefactory/discussions) for general questions.  
-Use Issues only for confirmed bugs and feature requests.
-
-Thank you for contributing!
+Open a [Discussion](https://github.com/AndresBardales/softwarefactory/discussions) or file an issue with the `question` label.

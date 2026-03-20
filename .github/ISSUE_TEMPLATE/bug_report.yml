@@ -1,0 +1,63 @@
+name: Bug Report
+description: Something isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please fill in the details below so we can reproduce and fix the issue.
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      description: e.g., Ubuntu 22.04, Debian 12
+      placeholder: Ubuntu 22.04
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Install Mode
+      options:
+        - Local
+        - Cloud
+        - Hybrid
+    validations:
+      required: true
+
+  - type: input
+    id: step
+    attributes:
+      label: Failed at Step
+      description: Which install step failed? (e.g., Step 06 — Source Repos)
+      placeholder: Step 06 — Source Repos
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem clearly.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste relevant logs from the dashboard or terminal.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: Software Factory Version
+      description: Run `sf --version` or check the release tag
+      placeholder: v0.2.0

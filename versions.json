@@ -1,24 +1,17 @@
 {
-  "latest": {
-    "channel": "stable",
-    "version": "0.1.0",
-    "tag": "v0.1.0-pre-launch",
-    "released": "2026-03-18",
-    "installer_url": "https://github.com/AndresBardales/softwarefactory/archive/refs/tags/v0.1.0-pre-launch.tar.gz",
-    "checksum_url": "https://github.com/AndresBardales/softwarefactory/releases/download/v0.1.0-pre-launch/checksums.sha256",
-    "changelog": "https://github.com/AndresBardales/softwarefactory/releases/tag/v0.1.0-pre-launch",
-    "minimum_required": "0.1.0"
-  },
+  "latest": "0.1.0",
   "channels": {
-    "stable": "0.1.0",
-    "rc": "0.1.0"
+    "stable": "0.1.0"
   },
-  "history": [
-    {
-      "version": "0.1.0",
-      "tag": "v0.1.0-pre-launch",
-      "channel": "stable",
-      "released": "2026-03-18"
+  "releases": {
+    "0.1.0": {
+      "tag": "v0.1.0",
+      "date": "2026-03-19T00:00:00Z",
+      "download": "https://github.com/AndresBardales/softwarefactory/releases/download/v0.1.0/softwarefactory-v0.1.0.tar.gz",
+      "sha256": "",
+      "min_upgrade_from": "0.0.0",
+      "changelog": "https://github.com/AndresBardales/softwarefactory/releases/tag/v0.1.0",
+      "notes": "Initial public release. Includes full installer, web dashboard, 3 deployment modes, and sf CLI."
     }
-  ]
+  }
 }
