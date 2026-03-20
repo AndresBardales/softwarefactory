@@ -108,6 +108,14 @@ gh_push_code() {
   # Check if remote already has commits
   if git ls-remote --heads "$AUTH_URL" main 2>/dev/null | grep -q main; then
     log_info "Repo '${repo_slug}' already has code on main — skipping push"
+    # Trigger workflow_dispatch for app repos so Docker images get built
+    if [ "$repo_slug" != "infra-gitops" ]; then
+      log_info "Triggering CI/CD build via workflow_dispatch for ${repo_slug}..."
+      gh_api "POST" "https://api.github.com/repos/${GIT_WORKSPACE}/${repo_slug}/actions/workflows/build-deploy.yml/dispatches" \
+        -d "{\"ref\":\"main\"}" 2>/dev/null && \
+        log_info "Build triggered for ${repo_slug}" || \
+        log_warn "Could not trigger workflow_dispatch for ${repo_slug} — images may need manual build"
+    fi
     return 0
   fi
 
@@ -115,6 +123,17 @@ gh_push_code() {
   tmp_dir=$(mktemp -d)
 
   tar -xzf "$archive" -C "$tmp_dir"
+
+  # If tar has a single subdirectory (e.g. kaanbal-api/), move contents up
+  # so the git repo has files at root, not nested under a prefix
+  local inner_dir="$tmp_dir/$repo_slug"
+  if [ -d "$inner_dir" ]; then
+    local work_dir
+    work_dir=$(mktemp -d)
+    mv "$inner_dir"/* "$inner_dir"/.[!.]* "$work_dir/" 2>/dev/null || true
+    rm -rf "$tmp_dir"
+    tmp_dir="$work_dir"
+  fi
 
   # Replace placeholders
   log_info "Substituting placeholders in ${repo_slug}..."

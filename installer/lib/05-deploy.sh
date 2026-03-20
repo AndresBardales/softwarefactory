@@ -72,7 +72,7 @@ deploy_mongodb() {
   log_step "Deploying MongoDB..."
 
   # Reuse existing password if already stored
-  local config_file="$HOME/.kaanbal-engine/config.env"
+  local config_file="$HOME/.software-factory/config.env"
   local mongo_password=""
   if [ -f "$config_file" ]; then
     mongo_password=$(grep '^KB_MONGO_PASSWORD=' "$config_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)
@@ -186,7 +186,7 @@ deploy_kaanbal_api() {
   kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
 
   # Read mongo URI from config
-  local config_file="$HOME/.kaanbal-engine/config.env"
+  local config_file="$HOME/.software-factory/config.env"
   local mongo_uri=""
   if [ -f "$config_file" ]; then
     source "$config_file" 2>/dev/null || true
@@ -221,7 +221,7 @@ deploy_kaanbal_api() {
   pull_secret_block=$(_ensure_pull_secret)
 
   # Generate SECRET_KEY once and persist it
-  local config_file="$HOME/.kaanbal-engine/config.env"
+  local config_file="$HOME/.software-factory/config.env"
   local secret_key=""
   if [ -f "$config_file" ]; then
     secret_key=$(grep '^KB_SECRET_KEY=' "$config_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)
@@ -332,7 +332,7 @@ deploy_kaanbal_console() {
 
   kubectl create namespace prod --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
 
-  local config_file="$HOME/.kaanbal-engine/config.env"
+  local config_file="$HOME/.software-factory/config.env"
   [ -f "$config_file" ] && source "$config_file" 2>/dev/null || true
 
   local docker_user="${KB_DOCKER_USER:-${KB_DOCKER_USERNAME:-}}"
@@ -506,7 +506,7 @@ deploy_kaanbal_engine() {
   fi
 
   # Generate SECRET_KEY once and persist it
-  local config_file="$HOME/.kaanbal-engine/config.env"
+  local config_file="$HOME/.software-factory/config.env"
   local secret_key=""
   if [ -f "$config_file" ]; then
     secret_key=$(grep '^KB_SECRET_KEY=' "$config_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)
