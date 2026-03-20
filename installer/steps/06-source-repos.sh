@@ -482,7 +482,12 @@ if [ "$GIT_PROVIDER" = "github" ]; then
   gh_create_repo "kaanbal-console" "Frontend UI (Vue 3 + Tailwind)"
   gh_create_repo "infra-gitops" "Infrastructure manifests & GitOps"
 
-  log_step "Phase 2: Pushing source code..."
+  log_step "Phase 2: Configuring GitHub Actions secrets (before push)..."
+  gh_configure_secrets "kaanbal-api" || log_warn "Some secrets not set for kaanbal-api — check GitHub Actions settings"
+  gh_configure_secrets "kaanbal-console" || log_warn "Some secrets not set for kaanbal-console — check GitHub Actions settings"
+  gh_configure_infra_secrets || log_warn "Some infra secrets not set — check GitHub Actions settings"
+
+  log_step "Phase 3: Pushing source code..."
   for repo in kaanbal-api kaanbal-console infra-gitops; do
     if [ -f "$TEMPLATE_DIR/${repo}.tar.gz" ]; then
       gh_push_code "$repo" "$TEMPLATE_DIR/${repo}.tar.gz"
@@ -490,11 +495,6 @@ if [ "$GIT_PROVIDER" = "github" ]; then
       log_warn "Template not found: $TEMPLATE_DIR/${repo}.tar.gz — skipping push"
     fi
   done
-
-  log_step "Phase 3: Configuring GitHub Actions secrets..."
-  gh_configure_secrets "kaanbal-api" || log_warn "Some secrets not set for kaanbal-api — check GitHub Actions settings"
-  gh_configure_secrets "kaanbal-console" || log_warn "Some secrets not set for kaanbal-console — check GitHub Actions settings"
-  gh_configure_infra_secrets || log_warn "Some infra secrets not set — check GitHub Actions settings"
 
   log_step "Phase 4: CI/CD will trigger automatically on push..."
   log_info "GitHub Actions workflows are included in the source code"
