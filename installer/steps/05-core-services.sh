@@ -11,11 +11,11 @@ source "$INSTALLER_DIR/lib/07-tunnel.sh"
 # Load config
 [ -f "$HOME/.software-factory/config.env" ] && source "$HOME/.software-factory/config.env"
 
-SF_CONFIG="$HOME/.software-factory/config.env"
-export SF_CONFIG
+KB_CONFIG="$HOME/.software-factory/config.env"
+export KB_CONFIG
 
-SF_MODE="${SF_MODE:-local}"
-export SF_MODE
+KB_MODE="${KB_MODE:-local}"
+export KB_MODE
 
 echo "=== Installing Core Services ==="
 install_core_infra

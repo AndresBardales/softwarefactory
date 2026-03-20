@@ -15,33 +15,33 @@
 
 setup_cloudflare_tunnel() {
   # Only run in hybrid mode with Cloudflare as tunnel provider
-  if [ "$SF_MODE" != "hybrid" ] || [ "${SF_TUNNEL_PROVIDER:-cloudflare}" != "cloudflare" ]; then
-    log_info "Skipping Cloudflare Tunnel setup (mode=$SF_MODE, provider=${SF_TUNNEL_PROVIDER:-cloudflare})"
+  if [ "$KB_MODE" != "hybrid" ] || [ "${KB_TUNNEL_PROVIDER:-cloudflare}" != "cloudflare" ]; then
+    log_info "Skipping Cloudflare Tunnel setup (mode=$KB_MODE, provider=${KB_TUNNEL_PROVIDER:-cloudflare})"
     return 0
   fi
 
-  if [ -z "${SF_CLOUDFLARE_TOKEN:-}" ] || [ -z "${SF_CLOUDFLARE_ACCOUNT_ID:-}" ]; then
-    log_error "SF_CLOUDFLARE_TOKEN and SF_CLOUDFLARE_ACCOUNT_ID are required for hybrid mode"
+  if [ -z "${KB_CLOUDFLARE_TOKEN:-}" ] || [ -z "${KB_CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+    log_error "KB_CLOUDFLARE_TOKEN and KB_CLOUDFLARE_ACCOUNT_ID are required for hybrid mode"
     exit 1
   fi
 
-  if [ -z "${SF_DOMAIN:-}" ]; then
-    log_error "SF_DOMAIN is required for Cloudflare Tunnel setup"
+  if [ -z "${KB_DOMAIN:-}" ]; then
+    log_error "KB_DOMAIN is required for Cloudflare Tunnel setup"
     exit 1
   fi
 
   log_section "Cloudflare Tunnel"
 
   local cf_api="https://api.cloudflare.com/client/v4"
-  local tunnel_name="software-factory"
+  local tunnel_name="kaanbal-engine"
 
   # ── Step 0: Cleanup stale tunnels from previous installs ──────────────────
   log_step "Checking for existing tunnels..."
 
   local list_resp
   list_resp=$(curl -sf \
-    "${cf_api}/accounts/${SF_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel?name_prefix=software-factory&is_deleted=false&per_page=50" \
-    -H "Authorization: Bearer ${SF_CLOUDFLARE_TOKEN}" \
+    "${cf_api}/accounts/${KB_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel?name_prefix=kaanbal-engine&is_deleted=false&per_page=50" \
+    -H "Authorization: Bearer ${KB_CLOUDFLARE_TOKEN}" \
     -H "Content-Type: application/json" 2>/dev/null || echo '{"result":[]}')
 
   # Parse existing tunnels and decide: reuse healthy one or cleanup stale ones
@@ -87,11 +87,11 @@ except Exception:
         log_info "Cleaning up stale tunnel: $del_id"
         # Must clean connections first, then delete
         curl -sf -X DELETE \
-          "${cf_api}/accounts/${SF_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${del_id}/connections" \
-          -H "Authorization: Bearer ${SF_CLOUDFLARE_TOKEN}" > /dev/null 2>&1 || true
+          "${cf_api}/accounts/${KB_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${del_id}/connections" \
+          -H "Authorization: Bearer ${KB_CLOUDFLARE_TOKEN}" > /dev/null 2>&1 || true
         curl -sf -X DELETE \
-          "${cf_api}/accounts/${SF_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${del_id}" \
-          -H "Authorization: Bearer ${SF_CLOUDFLARE_TOKEN}" \
+          "${cf_api}/accounts/${KB_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${del_id}" \
+          -H "Authorization: Bearer ${KB_CLOUDFLARE_TOKEN}" \
           -H "Content-Type: application/json" > /dev/null 2>&1 || true
         ;;
     esac
@@ -106,8 +106,8 @@ except Exception:
     # Get token for existing tunnel via Cloudflare API
     local token_resp
     token_resp=$(curl -sf \
-      "${cf_api}/accounts/${SF_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${tunnel_id}/token" \
-      -H "Authorization: Bearer ${SF_CLOUDFLARE_TOKEN}" 2>/dev/null || echo '')
+      "${cf_api}/accounts/${KB_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${tunnel_id}/token" \
+      -H "Authorization: Bearer ${KB_CLOUDFLARE_TOKEN}" 2>/dev/null || echo '')
     tunnel_token=$(echo "$token_resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('result',''))" 2>/dev/null || echo '')
     if [ -z "$tunnel_token" ] || [ "$tunnel_token" = "None" ]; then
       log_warn "Could not retrieve token for existing tunnel — will create a new one"
@@ -120,8 +120,8 @@ except Exception:
 
     local create_resp
     create_resp=$(curl -sf -X POST \
-      "${cf_api}/accounts/${SF_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel" \
-      -H "Authorization: Bearer ${SF_CLOUDFLARE_TOKEN}" \
+      "${cf_api}/accounts/${KB_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel" \
+      -H "Authorization: Bearer ${KB_CLOUDFLARE_TOKEN}" \
       -H "Content-Type: application/json" \
       -d "{\"name\":\"${tunnel_name}\",\"tunnel_secret\":\"$(openssl rand -base64 32)\"}")
 
@@ -137,37 +137,37 @@ except Exception:
   fi
 
   # Persist tunnel ID and token for future re-runs
-  sed -i '/^SF_CLOUDFLARE_TUNNEL_ID=/d' "$SF_CONFIG" 2>/dev/null || true
-  sed -i '/^SF_CLOUDFLARE_TUNNEL_TOKEN=/d' "$SF_CONFIG" 2>/dev/null || true
-  echo "SF_CLOUDFLARE_TUNNEL_ID=\"${tunnel_id}\"" >> "$SF_CONFIG"
-  echo "SF_CLOUDFLARE_TUNNEL_TOKEN=\"${tunnel_token}\"" >> "$SF_CONFIG"
-  export SF_CLOUDFLARE_TUNNEL_TOKEN="${tunnel_token}"
-  export SF_CLOUDFLARE_TUNNEL_ID="${tunnel_id}"
+  sed -i '/^KB_CLOUDFLARE_TUNNEL_ID=/d' "$KB_CONFIG" 2>/dev/null || true
+  sed -i '/^KB_CLOUDFLARE_TUNNEL_TOKEN=/d' "$KB_CONFIG" 2>/dev/null || true
+  echo "KB_CLOUDFLARE_TUNNEL_ID=\"${tunnel_id}\"" >> "$KB_CONFIG"
+  echo "KB_CLOUDFLARE_TUNNEL_TOKEN=\"${tunnel_token}\"" >> "$KB_CONFIG"
+  export KB_CLOUDFLARE_TUNNEL_TOKEN="${tunnel_token}"
+  export KB_CLOUDFLARE_TUNNEL_ID="${tunnel_id}"
 
   # ── Step 2: Configure ingress rules (which hostname → which K8s service) ──
   log_step "Configuring ingress rules..."
 
   curl -sf -X PUT \
-    "${cf_api}/accounts/${SF_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${tunnel_id}/configurations" \
-    -H "Authorization: Bearer ${SF_CLOUDFLARE_TOKEN}" \
+    "${cf_api}/accounts/${KB_CLOUDFLARE_ACCOUNT_ID}/cfd_tunnel/${tunnel_id}/configurations" \
+    -H "Authorization: Bearer ${KB_CLOUDFLARE_TOKEN}" \
     -H "Content-Type: application/json" \
     -d "{
       \"config\": {
         \"ingress\": [
           {
-            \"hostname\": \"nexus-console.${SF_DOMAIN}\",
-            \"service\": \"http://nexus-console.prod.svc.cluster.local:80\"
+            \"hostname\": \"kaanbal-console.${KB_DOMAIN}\",
+            \"service\": \"http://kaanbal-console.prod.svc.cluster.local:80\"
           },
           {
-            \"hostname\": \"api.${SF_DOMAIN}\",
-            \"service\": \"http://nexus-api.prod.svc.cluster.local:80\"
+            \"hostname\": \"api.${KB_DOMAIN}\",
+            \"service\": \"http://kaanbal-api.prod.svc.cluster.local:80\"
           },
           {
-            \"hostname\": \"nexus-api.${SF_DOMAIN}\",
-            \"service\": \"http://nexus-api.prod.svc.cluster.local:80\"
+            \"hostname\": \"kaanbal-api.${KB_DOMAIN}\",
+            \"service\": \"http://kaanbal-api.prod.svc.cluster.local:80\"
           },
           {
-            \"hostname\": \"*.${SF_DOMAIN}\",
+            \"hostname\": \"*.${KB_DOMAIN}\",
             \"service\": \"http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80\"
           },
           {
@@ -180,12 +180,12 @@ except Exception:
   log_info "Ingress rules configured"
 
   # ── Step 3: Get Zone ID for the domain ───────────────────────────────────
-  log_step "Looking up Cloudflare Zone for ${SF_DOMAIN}..."
+  log_step "Looking up Cloudflare Zone for ${KB_DOMAIN}..."
 
   local zone_resp zone_id
   zone_resp=$(curl -sf \
-    "${cf_api}/zones?name=${SF_DOMAIN}&status=active" \
-    -H "Authorization: Bearer ${SF_CLOUDFLARE_TOKEN}")
+    "${cf_api}/zones?name=${KB_DOMAIN}&status=active" \
+    -H "Authorization: Bearer ${KB_CLOUDFLARE_TOKEN}")
 
   zone_id=$(echo "$zone_resp" | python3 -c "
 import json,sys
@@ -195,7 +195,7 @@ print(results[0]['id'] if results else '')
 " 2>/dev/null)
 
   if [ -z "$zone_id" ]; then
-    log_warn "Zone '${SF_DOMAIN}' not found in Cloudflare — skipping automatic DNS"
+    log_warn "Zone '${KB_DOMAIN}' not found in Cloudflare — skipping automatic DNS"
     log_warn "Add the domain to Cloudflare, then re-run this step."
   else
     log_info "Zone ID: $zone_id"
@@ -204,28 +204,28 @@ print(results[0]['id'] if results else '')
     log_step "Creating DNS records..."
 
     local cname_target="${tunnel_id}.cfargotunnel.com"
-    local subdomains=("nexus-console" "nexus-api" "api")
+    local subdomains=("kaanbal-console" "kaanbal-api" "api")
 
     for sub in "${subdomains[@]}"; do
-      local fqdn="${sub}.${SF_DOMAIN}"
+      local fqdn="${sub}.${KB_DOMAIN}"
 
       local existing
       existing=$(curl -sf \
         "${cf_api}/zones/${zone_id}/dns_records?type=CNAME&name=${fqdn}" \
-        -H "Authorization: Bearer ${SF_CLOUDFLARE_TOKEN}" \
+        -H "Authorization: Bearer ${KB_CLOUDFLARE_TOKEN}" \
         | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['result'][0]['id'] if d.get('result') else '')" 2>/dev/null)
 
       if [ -n "$existing" ]; then
         curl -sf -X PUT \
           "${cf_api}/zones/${zone_id}/dns_records/${existing}" \
-          -H "Authorization: Bearer ${SF_CLOUDFLARE_TOKEN}" \
+          -H "Authorization: Bearer ${KB_CLOUDFLARE_TOKEN}" \
           -H "Content-Type: application/json" \
           -d "{\"type\":\"CNAME\",\"name\":\"${fqdn}\",\"content\":\"${cname_target}\",\"proxied\":true}" > /dev/null
         log_info "DNS updated: ${fqdn}"
       else
         curl -sf -X POST \
           "${cf_api}/zones/${zone_id}/dns_records" \
-          -H "Authorization: Bearer ${SF_CLOUDFLARE_TOKEN}" \
+          -H "Authorization: Bearer ${KB_CLOUDFLARE_TOKEN}" \
           -H "Content-Type: application/json" \
           -d "{\"type\":\"CNAME\",\"name\":\"${fqdn}\",\"content\":\"${cname_target}\",\"proxied\":true}" > /dev/null
         log_info "DNS created: ${fqdn} → tunnel"
@@ -315,9 +315,9 @@ EOF
 
   echo ""
   log_info "Cloudflare Tunnel active — your apps will be live at:"
-  log_info "  Console  → https://nexus-console.${SF_DOMAIN}"
-  log_info "  API      → https://api.${SF_DOMAIN}"
-  log_info "  Wildcard → https://*.${SF_DOMAIN} (for future apps)"
+  log_info "  Console  → https://kaanbal-console.${KB_DOMAIN}"
+  log_info "  API      → https://api.${KB_DOMAIN}"
+  log_info "  Wildcard → https://*.${KB_DOMAIN} (for future apps)"
   echo ""
   log_info "Manage tunnel at: https://one.dash.cloudflare.com → Networks → Tunnels"
 }

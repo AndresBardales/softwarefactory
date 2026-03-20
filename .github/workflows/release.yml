@@ -1,5 +1,5 @@
 # ==============================================================================
-# Software Factory — Release Pipeline
+# Kaanbal Engine — Release Pipeline
 # ==============================================================================
 # Triggers on version tags (v*.*.*) and creates a GitHub Release with:
 #   - Release notes from conventional commits
@@ -51,9 +51,9 @@ jobs:
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Stamp version in sf CLI
+      - name: Stamp version in kb CLI
         run: |
-          sed -i "s/SF_VERSION:-1.0.0/SF_VERSION:-${{ steps.version.outputs.version }}/" installer/sf
+          sed -i "s/KB_VERSION:-1.0.0/KB_VERSION:-${{ steps.version.outputs.version }}/" installer/kb
 
       - name: Build installer bundle
         run: |
@@ -116,7 +116,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
-          name: Software Factory ${{ steps.version.outputs.tag }}
+          name: Kaanbal Engine ${{ steps.version.outputs.tag }}
           body_path: changelog.md
           prerelease: ${{ steps.version.outputs.prerelease }}
           files: |
@@ -126,7 +126,7 @@ jobs:
       - name: Update versions.json (stable releases only)
         if: steps.version.outputs.prerelease == 'false'
         run: |
-          # Update the versions manifest for sf upgrade
+          # Update the versions manifest for kb upgrade
           VERSION="${{ steps.version.outputs.version }}"
           TAG="${{ steps.version.outputs.tag }}"
           CHECKSUM=$(cat dist/softwarefactory-${TAG}.sha256 | awk '{print $1}')

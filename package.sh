@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Software Factory — Package Script
+# Kaanbal Engine — Package Script
 # ==============================================================================
-# Creates distributable tarballs from the sibling repos (nexus-api, nexus-console,
+# Creates distributable tarballs from the sibling repos (kaanbal-api, kaanbal-console,
 # infra-gitops) and places them in installer/templates/ so that a fresh install
 # on a new VPS can push the code to the user's Git repos.
 #
@@ -41,13 +41,13 @@ log_error() { echo -e "${RED}[✗]${NC} $*"; }
 log_step()  { echo -e "${CYAN}[→]${NC} ${BOLD}$*${NC}"; }
 
 # repos to package — these are sibling directories in the workspace
-REPOS=("nexus-api" "nexus-console" "infra-gitops")
+REPOS=("kaanbal-api" "kaanbal-console" "infra-gitops")
 
 # Current owner values — these get replaced with __PLACEHOLDER__ tokens in tarballs
 # so the installer can substitute the new user's values
-CURRENT_GIT_WORKSPACE="${SF_CURRENT_GIT_WORKSPACE:-andresbardaleswork-cyber}"
-CURRENT_DOCKER_USER="${SF_CURRENT_DOCKER_USER:-andresbardaleswork}"
-CURRENT_DOMAIN="${SF_CURRENT_DOMAIN:-automation.com.mx}"
+CURRENT_GIT_WORKSPACE="${KB_CURRENT_GIT_WORKSPACE:-andresbardaleswork-cyber}"
+CURRENT_DOCKER_USER="${KB_CURRENT_DOCKER_USER:-andresbardaleswork}"
+CURRENT_DOMAIN="${KB_CURRENT_DOMAIN:-automation.com.mx}"
 
 # Files/dirs to exclude from tarballs (they are dev-only or regenerated)
 EXCLUDE_PATTERNS=(
@@ -139,7 +139,7 @@ package_repo() {
 # Main
 # ==============================================================================
 echo ""
-echo -e "${BOLD}Software Factory — Packager${NC}"
+echo -e "${BOLD}Kaanbal Engine — Packager${NC}"
 echo -e "Workspace: $WORKSPACE"
 echo -e "Output:    $OUTPUT_DIR"
 echo -e "Mode:      $([ "$DIRTY_MODE" = true ] && echo 'working tree (--dirty)' || echo 'git committed')"

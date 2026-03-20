@@ -171,7 +171,7 @@ cmd_upgrade() {
   echo ""
 
   local current_version="${KB_VERSION:-0.0.0}"
-  local sf_dir="${KB_INSTALL_DIR:-$HOME/softwarefactory}"
+  local kb_dir="${KB_INSTALL_DIR:-$HOME/softwarefactory}"
   local repo_url="${KB_REPO_URL:-https://github.com/AndresBardales/softwarefactory}"
   local manifest_url="${repo_url}/raw/main/versions.json"
   local channel="${1:-stable}"
@@ -182,7 +182,7 @@ cmd_upgrade() {
   manifest=$(curl -sf --max-time 15 "$manifest_url" 2>/dev/null)
   if [ -z "$manifest" ]; then
     echo -e "  ${YELLOW}[!]${NC} Could not reach update server. Falling back to git pull..."
-    _upgrade_git_pull "$sf_dir"
+    _upgrade_git_pull "$kb_dir"
     return $?
   fi
 
@@ -211,7 +211,7 @@ cmd_upgrade() {
 
   if [ -z "$download_url" ]; then
     echo -e "  ${YELLOW}[!]${NC} No download URL for v${latest}. Falling back to git pull..."
-    _upgrade_git_pull "$sf_dir"
+    _upgrade_git_pull "$kb_dir"
     return $?
   fi
 
@@ -244,14 +244,14 @@ cmd_upgrade() {
 
   # Step 5: Backup current version
   echo -e "  ${BLUE}[→]${NC} Backing up current version..."
-  local backup_dir="$sf_dir/.backup-v${current_version}"
-  if [ -d "$sf_dir/installer" ]; then
-    cp -a "$sf_dir/installer" "$backup_dir" 2>/dev/null || true
+  local backup_dir="$kb_dir/.backup-v${current_version}"
+  if [ -d "$kb_dir/installer" ]; then
+    cp -a "$kb_dir/installer" "$backup_dir" 2>/dev/null || true
   fi
 
   # Step 6: Apply update
   echo -e "  ${BLUE}[→]${NC} Applying update..."
-  tar -xzf "$bundle_file" -C "$sf_dir" --strip-components=1 2>/dev/null
+  tar -xzf "$bundle_file" -C "$kb_dir" --strip-components=1 2>/dev/null
   rm -rf "$tmp_dir"
 
   # Step 7: Update version in config
@@ -264,8 +264,8 @@ cmd_upgrade() {
   fi
 
   # Step 8: Update CLI
-  if [ -f "$sf_dir/installer/kb" ]; then
-    sudo cp "$sf_dir/installer/kb" /usr/local/bin/kb 2>/dev/null
+  if [ -f "$kb_dir/installer/kb" ]; then
+    sudo cp "$kb_dir/installer/kb" /usr/local/bin/kb 2>/dev/null
     sudo chmod +x /usr/local/bin/kb 2>/dev/null
   fi
 
@@ -279,15 +279,15 @@ cmd_upgrade() {
 }
 
 _upgrade_git_pull() {
-  local sf_dir="$1"
-  if [ -d "$sf_dir/.git" ]; then
+  local kb_dir="$1"
+  if [ -d "$kb_dir/.git" ]; then
     echo -e "  ${BLUE}[→]${NC} Pulling latest from Git..."
-    cd "$sf_dir" && git pull origin main 2>/dev/null
+    cd "$kb_dir" && git pull origin main 2>/dev/null
     echo -e "  ${GREEN}[✓]${NC} Updated from Git."
     _upgrade_images
     return 0
   else
-    echo -e "  ${RED}[✗]${NC} No git repo found at $sf_dir. Clone fresh:"
+    echo -e "  ${RED}[✗]${NC} No git repo found at $kb_dir. Clone fresh:"
     echo -e "      git clone https://github.com/AndresBardales/softwarefactory.git"
     return 1
   fi

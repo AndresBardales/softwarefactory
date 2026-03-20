@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Step 00: Clean Install — Wipe everything and start fresh.
 # Optional remote cleanup is controlled by env vars:
-#   SF_CLEAN_DELETE_CLOUDFLARE_TUNNEL=true|false (default true)
-#   SF_CLEAN_DELETE_REMOTE_REPOS=true|false      (default false)
+#   KB_CLEAN_DELETE_CLOUDFLARE_TUNNEL=true|false (default true)
+#   KB_CLEAN_DELETE_REMOTE_REPOS=true|false      (default false)
 set -euo pipefail
 
 INSTALLER_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -12,8 +12,8 @@ CONFIG_DIR="$HOME/.software-factory"
 CONFIG_FILE="$CONFIG_DIR/config.env"
 STATE_FILE="$CONFIG_DIR/installer-state.json"
 
-DELETE_CF_TUNNEL="${SF_CLEAN_DELETE_CLOUDFLARE_TUNNEL:-true}"
-DELETE_REMOTE_REPOS="${SF_CLEAN_DELETE_REMOTE_REPOS:-false}"
+DELETE_CF_TUNNEL="${KB_CLEAN_DELETE_CLOUDFLARE_TUNNEL:-true}"
+DELETE_REMOTE_REPOS="${KB_CLEAN_DELETE_REMOTE_REPOS:-false}"
 
 if [ -f "$CONFIG_FILE" ]; then
   # shellcheck disable=SC1090
@@ -28,9 +28,9 @@ echo ""
 clean_cloudflare_tunnel() {
   [ "$DELETE_CF_TUNNEL" = "true" ] || return 0
 
-  local token="${SF_CLOUDFLARE_TOKEN:-}"
-  local account_id="${SF_CLOUDFLARE_ACCOUNT_ID:-}"
-  local tunnel_id="${SF_CLOUDFLARE_TUNNEL_ID:-}"
+  local token="${KB_CLOUDFLARE_TOKEN:-}"
+  local account_id="${KB_CLOUDFLARE_ACCOUNT_ID:-}"
+  local tunnel_id="${KB_CLOUDFLARE_TUNNEL_ID:-}"
 
   if [ -z "$token" ] || [ -z "$account_id" ]; then
     log_warn "Cloudflare credentials not found — skipping remote tunnel cleanup"
@@ -55,9 +55,9 @@ clean_cloudflare_tunnel() {
 clean_remote_github_repos() {
   [ "$DELETE_REMOTE_REPOS" = "true" ] || return 0
 
-  local provider="${SF_GIT_PROVIDER:-github}"
-  local user="${SF_GIT_WORKSPACE:-${SF_GIT_USER:-}}"
-  local token="${SF_GIT_TOKEN:-}"
+  local provider="${KB_GIT_PROVIDER:-github}"
+  local user="${KB_GIT_WORKSPACE:-${KB_GIT_USER:-}}"
+  local token="${KB_GIT_TOKEN:-}"
 
   if [ "$provider" != "github" ]; then
     log_warn "Remote repo delete currently implemented for GitHub only — skipping"
@@ -68,7 +68,7 @@ clean_remote_github_repos() {
     return 0
   fi
 
-  for repo in nexus-api nexus-console infra-gitops; do
+  for repo in kaanbal-api kaanbal-console infra-gitops; do
     log_info "Deleting GitHub repo: ${user}/${repo}"
     curl -sS -X DELETE "https://api.github.com/repos/${user}/${repo}" \
       -H "Authorization: Bearer ${token}" -H "Accept: application/vnd.github+json" >/dev/null 2>&1 || true
@@ -116,13 +116,13 @@ fi
 mkdir -p "$CONFIG_DIR"
 TOKEN_LINE=""
 if [ -f "$CONFIG_FILE" ]; then
-  TOKEN_LINE=$(grep "^SF_SETUP_TOKEN=" "$CONFIG_FILE" 2>/dev/null || true)
+  TOKEN_LINE=$(grep "^KB_SETUP_TOKEN=" "$CONFIG_FILE" 2>/dev/null || true)
 fi
 
 cat > "$CONFIG_FILE" <<EOF
-SF_MODE="local"
-SF_DOMAIN="localhost"
-SF_ENABLE_TLS=false
+KB_MODE="local"
+KB_DOMAIN="localhost"
+KB_ENABLE_TLS=false
 ${TOKEN_LINE}
 EOF
 chmod 600 "$CONFIG_FILE"

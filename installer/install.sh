@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Software Factory — Installer
+# Kaanbal Engine — Installer
 # ==============================================================================
 # Launches a web-based installer dashboard where you can monitor each step,
 # enter credentials interactively, retry failures, and launch the platform.
@@ -21,8 +21,8 @@ fi
 set -euo pipefail
 
 INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SF_VERSION="1.0.0"
-SF_HOME="${SF_HOME:-$HOME/.software-factory}"
+KB_VERSION="1.0.0"
+KB_HOME="${KB_HOME:-$HOME/.kaanbal}"
 INSTALLER_PORT="${INSTALLER_PORT:-3000}"
 
 # Colors
@@ -53,7 +53,7 @@ print_banner() {
 
 BANNER
   echo -e "${NC}"
-  echo -e "  ${BOLD}Your Personal PaaS — v${SF_VERSION}${NC}"
+  echo -e "  ${BOLD}Your Personal PaaS — v${KB_VERSION}${NC}"
   echo -e "  Deploy apps, databases, and automations from a UI."
   echo ""
 }
@@ -101,28 +101,28 @@ run_dashboard() {
   fi
 
   # 2. Generate setup token
-  local SF_SETUP_TOKEN
+  local KB_SETUP_TOKEN
   if command -v openssl &>/dev/null; then
-    SF_SETUP_TOKEN="$(openssl rand -hex 12)"
+    KB_SETUP_TOKEN="$(openssl rand -hex 12)"
   else
-    SF_SETUP_TOKEN="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' | head -c 24)"
+    KB_SETUP_TOKEN="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n' | head -c 24)"
   fi
 
   # 3. Create config directory
-  mkdir -p "$SF_HOME"
+  mkdir -p "$KB_HOME"
 
   # Minimal config (no hardcoded Docker user — the UI form provides it)
-  cat > "$SF_HOME/config.env" << EOF
-SF_MODE="local"
-SF_DOMAIN="localhost"
-SF_ENABLE_TLS=false
-SF_SETUP_TOKEN="${SF_SETUP_TOKEN}"
+  cat > "$KB_HOME/config.env" << EOF
+KB_MODE="local"
+KB_DOMAIN="localhost"
+KB_ENABLE_TLS=false
+KB_SETUP_TOKEN="${KB_SETUP_TOKEN}"
 EOF
-  chmod 600 "$SF_HOME/config.env"
+  chmod 600 "$KB_HOME/config.env"
 
   # Installer env (for server.py)
-  cat > "$SF_HOME/installer.env" << EOF
-SF_SETUP_TOKEN=${SF_SETUP_TOKEN}
+  cat > "$KB_HOME/installer.env" << EOF
+KB_SETUP_TOKEN=${KB_SETUP_TOKEN}
 INSTALLER_DIR=${INSTALLER_DIR}
 INSTALLER_PORT=${INSTALLER_PORT}
 EOF
@@ -134,7 +134,7 @@ EOF
   else
     PUBLIC_IP="localhost"
   fi
-  local DASHBOARD_URL="http://${PUBLIC_IP}:${INSTALLER_PORT}?token=${SF_SETUP_TOKEN}"
+  local DASHBOARD_URL="http://${PUBLIC_IP}:${INSTALLER_PORT}?token=${KB_SETUP_TOKEN}"
 
   # 5. Print access info
   echo ""
@@ -143,7 +143,7 @@ EOF
   echo -e "  ${BLUE}│${NC}   ${BOLD}Installer Dashboard${NC}                                    ${BLUE}│${NC}"
   echo -e "  ${BLUE}│${NC}                                                          ${BLUE}│${NC}"
   echo -e "  ${BLUE}│${NC}   ${CYAN}http://${PUBLIC_IP}:${INSTALLER_PORT}${NC}"
-  echo -e "  ${BLUE}│${NC}   Token: ${YELLOW}${SF_SETUP_TOKEN}${NC}"
+  echo -e "  ${BLUE}│${NC}   Token: ${YELLOW}${KB_SETUP_TOKEN}${NC}"
   echo -e "  ${BLUE}│${NC}                                                          ${BLUE}│${NC}"
   echo -e "  ${BLUE}│${NC}   Open the URL in your browser and use the token.       ${BLUE}│${NC}"
   echo -e "  ${BLUE}│${NC}   Press ${BOLD}Ctrl+C${NC} to stop the installer.                    ${BLUE}│${NC}"
@@ -161,7 +161,7 @@ EOF
   fi
 
   # 7. Launch server
-  export SF_SETUP_TOKEN
+  export KB_SETUP_TOKEN
   export INSTALLER_PORT
   exec python3 "$INSTALLER_DIR/server.py"
 }
@@ -173,8 +173,8 @@ EOF
 main() {
   print_banner
 
-  echo -e "${GREEN}[✓]${NC} Software Factory Installer v${SF_VERSION}"
-  echo -e "${GREEN}[✓]${NC} Log file: $SF_HOME/install.log"
+  echo -e "${GREEN}[✓]${NC} Kaanbal Engine Installer v${KB_VERSION}"
+  echo -e "${GREEN}[✓]${NC} Log file: $KB_HOME/install.log"
   echo ""
 
   # Parse args

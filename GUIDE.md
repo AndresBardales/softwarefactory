@@ -1,4 +1,4 @@
-# Software Factory — Step-by-Step Install Guide
+# Kaanbal Engine — Step-by-Step Install Guide
 
 This guide walks you through every screen, every credential, and every decision — from a blank server to your first deployed app.
 
@@ -80,7 +80,7 @@ bash install.sh
 You'll see output like:
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║                   Software Factory Installer                ║
+║                   Kaanbal Engine Installer                  ║
 ║                                                              ║
 ║  Dashboard: http://YOUR_IP:3000                              ║
 ║  Token:     a1b2c3d4e5f6                                     ║
@@ -98,7 +98,7 @@ Open your browser and go to:
 http://YOUR_SERVER_IP:3000
 ```
 
-You'll see the Software Factory install dashboard. Paste the **setup token** from the terminal.
+You'll see the Kaanbal Engine install dashboard. Paste the **setup token** from the terminal.
 
 The dashboard shows 12 steps. Each step runs automatically, showing real-time logs. Here's what each one does:
 
@@ -112,8 +112,8 @@ The dashboard shows 12 steps. Each step runs automatically, showing real-time lo
 | 05 | Core Services | Deploys ingress, cert-manager, namespaces | 90s |
 | 06 | Source Repos | Creates your Git repos, triggers CI/CD | 120s |
 | 07 | Database | Deploys MongoDB with persistent storage | 60s |
-| 08 | Platform API | Deploys nexus-api backend | 60s |
-| 09 | Platform Console | Deploys nexus-console dashboard | 60s |
+| 08 | Platform API | Deploys kaanbal-api backend | 60s |
+| 09 | Platform Console | Deploys kaanbal-console dashboard | 60s |
 | 10 | Health Check | Verifies all services are running | 30s |
 | 11 | Finalize | Seeds admin user, installs CLI, smoke tests | 30s |
 
@@ -203,7 +203,7 @@ After entering credentials, the installer runs all remaining steps automatically
 
 **Common things you'll see:**
 - `[✓] K3s installed` — Kubernetes is ready
-- `[✓] nexus-api repo created` — your Git repo was set up
+- `[✓] kaanbal-api repo created` — your Git repo was set up
 - `[→] Waiting for CI/CD pipeline...` — GitHub Actions is building your Docker images
 - `[✓] All services healthy` — everything is running
 
@@ -233,7 +233,7 @@ You'll see the **Setup Wizard**:
 
 ## 8. Explore the Dashboard
 
-The Nexus Console (`http://YOUR_SERVER_IP:30080`) is your platform control panel:
+The Kaanbal Console (`http://YOUR_SERVER_IP:30080`) is your platform control panel:
 
 - **Apps** — See all deployed applications
 - **Templates** — Browse available app templates (FastAPI, Vue, MongoDB, PostgreSQL, etc.)
@@ -270,20 +270,20 @@ Access your app:
 
 ### CLI Commands
 
-The `sf` command is installed globally on your server:
+The `kb` command is installed globally on your server:
 
 ```bash
 # Check everything is running
-sf status
+kb status
 
 # See your apps
-sf apps
+kb apps
 
 # View logs for an app
-sf logs my-first-api --follow
+kb logs my-first-api --follow
 
 # View your configuration (secrets masked)
-sf config
+kb config
 ```
 
 ### Pushing Code Changes
@@ -322,7 +322,7 @@ kubectl get applications -n argocd
 
 ### Automatic (recommended)
 ```bash
-sf upgrade
+kb upgrade
 ```
 
 This checks for new versions, downloads, verifies the checksum, and updates.
@@ -342,24 +342,24 @@ bash install.sh  # Re-runs only what changed
 - **Check**: Is your GitHub token valid? Does it have repo + actions permissions?
 - **Fix**: Re-run step 06 from the dashboard (click Retry)
 
-### "Step 08 failed — nexus-api not starting"
-- **Check**: `kubectl logs -n prod deployment/nexus-api`
+### "Step 08 failed — kaanbal-api not starting"
+- **Check**: `kubectl logs -n prod deployment/kaanbal-api`
 - **Common cause**: Docker image hasn't been built yet. Wait for GitHub Actions to finish, then retry.
 
 ### "Can't access :30080 after install"
-- **Check**: `kubectl get pods -n prod` — is `nexus-console` running?
+- **Check**: `kubectl get pods -n prod` — is `kaanbal-console` running?
 - **Check**: Is port 30080 open in your VPS firewall?
 - **Fix** (Contabo/Hetzner): `ufw allow 30080/tcp`
 
 ### "DNS not working (cloud mode)"
 - **Check**: Are your Cloudflare nameservers active? (can take 24h on first setup)
-- **Check**: `dig nexus-console.yourdomain.com` — does it point to your server IP?
+- **Check**: `dig kaanbal-console.yourdomain.com` — does it point to your server IP?
 
-### "sf command not found"
+### "kb command not found"
 ```bash
 # Re-install the CLI
-sudo cp ~/softwarefactory/installer/sf /usr/local/bin/sf
-sudo chmod +x /usr/local/bin/sf
+sudo cp ~/softwarefactory/installer/kb /usr/local/bin/kb
+sudo chmod +x /usr/local/bin/kb
 ```
 
 ### General debug

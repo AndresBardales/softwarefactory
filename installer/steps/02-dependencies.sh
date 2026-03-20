@@ -10,7 +10,7 @@ echo "=== Dependencies ==="
 check_dependencies
 
 # Install Helm if marked for install during dependency check
-if [ "${SF_INSTALL_HELM:-}" = "true" ]; then
+if [ "${KB_INSTALL_HELM:-}" = "true" ]; then
   source "$INSTALLER_DIR/lib/03-k3s.sh"
   install_helm
 fi

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Software Factory — Installer wizard</title>
+<title>Kaanbal Engine — Installer wizard</title>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -110,7 +110,7 @@ body {
       <div style="width:48px;height:48px;border-radius:12px;background:var(--accent-dim);display:inline-flex;align-items:center;justify-content:center;margin-bottom:20px;">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
       </div>
-      <h1 style="font-size:20px;font-weight:600;margin-bottom:8px;">Software Factory</h1>
+      <h1 style="font-size:20px;font-weight:600;margin-bottom:8px;">Kaanbal Engine</h1>
       <p style="color:var(--text-muted);font-size:13px;margin-bottom:32px;">Input your setup token to begin.</p>
       
       <div x-show="!autoAuthenticating">
@@ -204,7 +204,7 @@ body {
         <template x-if="!currentStep||(currentStep.id==='01-system-check'&&currentStep.status==='pending')">
           <div class="splash">
             <h1 style="font-size:32px;font-weight:600;margin-bottom:12px;color:#fff;letter-spacing:-0.5px;">Ready to Build</h1>
-            <p style="color:var(--text-secondary);line-height:1.6;margin-bottom:32px;">This wizard will configure Kubernetes, Tailscale VPN, Cloudflare tunnels, databases, and APIs required to run your software factory on this machine.</p>
+            <p style="color:var(--text-secondary);line-height:1.6;margin-bottom:32px;">This wizard will configure Kubernetes, Tailscale VPN, Cloudflare tunnels, databases, and APIs required to run your Kaanbal Engine on this machine.</p>
             
             <!-- .env upload area -->
             <div style="margin-bottom:24px;width:100%;max-width:400px;">
@@ -251,7 +251,7 @@ body {
                     </label>
                     <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text-secondary);">
                       <input type="checkbox" x-model="cleanDeleteRemoteRepos" style="margin-top:2px;">
-                      <span>Also delete remote Git repos (<code>nexus-api</code>, <code>nexus-console</code>, <code>infra-gitops</code>)</span>
+                      <span>Also delete remote Git repos (<code>kaanbal-api</code>, <code>kaanbal-console</code>, <code>infra-gitops</code>)</span>
                     </label>
                   </div>
                   <div style="display:flex;gap:12px;justify-content:center;">
@@ -308,7 +308,7 @@ body {
                       <ol style="color:var(--text-secondary);font-size:13px;line-height:2;padding-left:20px;margin-bottom:24px;">
                         <li>Go to <strong style="color:var(--accent);">hub.docker.com → Account Settings → Security</strong></li>
                         <li>Click <strong style="color:#fff;">New Access Token</strong></li>
-                        <li>Name it (e.g. <em>software-factory</em>)</li>
+                        <li>Name it (e.g. <em>kaanbal-engine</em>)</li>
                         <li>Set permissions to <strong style="color:#fff;">Read, Write, Delete</strong></li>
                         <li>Click <strong style="color:#fff;">Generate</strong> → copy the token (starts with <code style="color:#93c5fd;">dckr_pat_</code>)</li>
                       </ol>
@@ -389,15 +389,15 @@ body {
             <!-- Sub-step 0: Admin Account -->
             <div x-show="wizardStep===0">
               <h2 style="font-size:20px;font-weight:600;color:#fff;margin-bottom:4px;">Admin Account</h2>
-              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">Create control-plane credentials for Nexus, ArgoCD, and Vault.</p>
+              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">Create control-plane credentials for Kaanbal, ArgoCD, and Vault.</p>
               <div style="display:flex;flex-direction:column;gap:16px;">
                 <div>
                   <label class="label">Username</label>
-                  <input x-model="creds.SF_ADMIN_USER" class="input" placeholder="admin">
+                  <input x-model="creds.KB_ADMIN_USER" class="input" placeholder="admin">
                 </div>
                 <div>
                   <label class="label">Password</label>
-                  <input type="password" x-model="creds.SF_ADMIN_PASSWORD" class="input" placeholder="Minimum 8 characters">
+                  <input type="password" x-model="creds.KB_ADMIN_PASSWORD" class="input" placeholder="Minimum 8 characters">
                 </div>
                 <div>
                   <label class="label">Confirm Password</label>
@@ -405,19 +405,19 @@ body {
                 </div>
                 <div>
                   <label class="label">ArgoCD Admin Password <span style="color:var(--danger);">*</span></label>
-                  <input type="password" x-model="creds.SF_ARGOCD_PASSWORD" class="input" placeholder="Password for ArgoCD user: admin">
+                  <input type="password" x-model="creds.KB_ARGOCD_PASSWORD" class="input" placeholder="Password for ArgoCD user: admin">
                 </div>
                 <div>
                   <label class="label">Vault Root/Bootstrap Token <span style="color:var(--danger);">*</span></label>
-                  <input type="password" x-model="creds.SF_VAULT_TOKEN" class="input" placeholder="vault_init_token from terraform.tfvars">
+                  <input type="password" x-model="creds.KB_VAULT_TOKEN" class="input" placeholder="vault_init_token from terraform.tfvars">
                   <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Used to seed `system_config.vault_token` so app deploys can write/read secrets from day one.</div>
                 </div>
-                <template x-if="creds.SF_ADMIN_PASSWORD && wzConfirmPw && creds.SF_ADMIN_PASSWORD !== wzConfirmPw">
+                <template x-if="creds.KB_ADMIN_PASSWORD && wzConfirmPw && creds.KB_ADMIN_PASSWORD !== wzConfirmPw">
                   <div style="color:var(--danger);font-size:12px;">✗ Passwords do not match</div>
                 </template>
               </div>
-              <button @click="wizardNext()" :disabled="!creds.SF_ADMIN_USER || !creds.SF_ADMIN_PASSWORD || creds.SF_ADMIN_PASSWORD.length < 6 || creds.SF_ADMIN_PASSWORD !== wzConfirmPw || !creds.SF_ARGOCD_PASSWORD || creds.SF_ARGOCD_PASSWORD.length < 6 || !creds.SF_VAULT_TOKEN"
-                class="btn btn-primary" style="width:100%;margin-top:24px;" :style="(!creds.SF_ADMIN_USER || !creds.SF_ADMIN_PASSWORD || creds.SF_ADMIN_PASSWORD.length < 6 || creds.SF_ADMIN_PASSWORD !== wzConfirmPw || !creds.SF_ARGOCD_PASSWORD || creds.SF_ARGOCD_PASSWORD.length < 6 || !creds.SF_VAULT_TOKEN) ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
+              <button @click="wizardNext()" :disabled="!creds.KB_ADMIN_USER || !creds.KB_ADMIN_PASSWORD || creds.KB_ADMIN_PASSWORD.length < 6 || creds.KB_ADMIN_PASSWORD !== wzConfirmPw || !creds.KB_ARGOCD_PASSWORD || creds.KB_ARGOCD_PASSWORD.length < 6 || !creds.KB_VAULT_TOKEN"
+                class="btn btn-primary" style="width:100%;margin-top:24px;" :style="(!creds.KB_ADMIN_USER || !creds.KB_ADMIN_PASSWORD || creds.KB_ADMIN_PASSWORD.length < 6 || creds.KB_ADMIN_PASSWORD !== wzConfirmPw || !creds.KB_ARGOCD_PASSWORD || creds.KB_ARGOCD_PASSWORD.length < 6 || !creds.KB_VAULT_TOKEN) ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
             </div>
 
             <!-- Sub-step 1: Platform Mode & Domain -->
@@ -426,24 +426,24 @@ body {
               <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">How will your platform be accessed? A domain is needed to expose public apps.</p>
               <div style="display:flex;flex-direction:column;gap:16px;">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                  <div @click="creds.SF_MODE='standalone'" :style="`padding:16px;border-radius:10px;cursor:pointer;border:2px solid;transition:all .2s;` + (creds.SF_MODE==='standalone' ? 'border-color:var(--accent);background:var(--accent-dim);' : 'border-color:var(--border-subtle);background:var(--bg-elevated);')">
+                  <div @click="creds.KB_MODE='standalone'" :style="`padding:16px;border-radius:10px;cursor:pointer;border:2px solid;transition:all .2s;` + (creds.KB_MODE==='standalone' ? 'border-color:var(--accent);background:var(--accent-dim);' : 'border-color:var(--border-subtle);background:var(--bg-elevated);')">
                     <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px;">Standalone</div>
                     <div style="font-size:11px;color:var(--text-muted);">Single VPS, access via IP + NodePort. Good for dev &amp; testing.</div>
                   </div>
-                  <div @click="creds.SF_MODE='hybrid'" :style="`padding:16px;border-radius:10px;cursor:pointer;border:2px solid;transition:all .2s;` + (creds.SF_MODE==='hybrid' ? 'border-color:var(--accent);background:var(--accent-dim);' : 'border-color:var(--border-subtle);background:var(--bg-elevated);')">
+                  <div @click="creds.KB_MODE='hybrid'" :style="`padding:16px;border-radius:10px;cursor:pointer;border:2px solid;transition:all .2s;` + (creds.KB_MODE==='hybrid' ? 'border-color:var(--accent);background:var(--accent-dim);' : 'border-color:var(--border-subtle);background:var(--bg-elevated);')">
                     <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px;">Hybrid</div>
                     <div style="font-size:11px;color:var(--text-muted);">Public domain + Tailscale VPN. Full production setup with TLS.</div>
                   </div>
                 </div>
                 <div>
                   <label class="label">Domain Name <span style="color:var(--danger);">*</span></label>
-                  <input x-model="creds.SF_DOMAIN" class="input" placeholder="yourdomain.com">
-                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Apps will be exposed as: <span style="color:var(--accent);" x-text="'app-name.' + (creds.SF_DOMAIN||'yourdomain.com')"></span></div>
+                  <input x-model="creds.KB_DOMAIN" class="input" placeholder="yourdomain.com">
+                  <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Apps will be exposed as: <span style="color:var(--accent);" x-text="'app-name.' + (creds.KB_DOMAIN||'yourdomain.com')"></span></div>
                 </div>
               </div>
               <div style="display:flex;gap:12px;margin-top:24px;">
                 <button @click="wizardStep=0" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
-                <button @click="wizardNext()" :disabled="!creds.SF_DOMAIN" class="btn btn-primary" style="flex:1;" :style="!creds.SF_DOMAIN ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
+                <button @click="wizardNext()" :disabled="!creds.KB_DOMAIN" class="btn btn-primary" style="flex:1;" :style="!creds.KB_DOMAIN ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
               </div>
             </div>
 
@@ -453,25 +453,25 @@ body {
                 <h2 style="font-size:20px;font-weight:600;color:#fff;">Git Provider</h2>
                 <button @click="activeModal='git'" class="btn btn-ghost" style="font-size:11px;padding:6px 12px;">? How to get a token</button>
               </div>
-              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">The installer will create <strong style="color:#fff;">3 private repos</strong> (nexus-api, nexus-console, infra-gitops) and configure GitHub Actions. <strong>Validation is required.</strong></p>
+              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">The installer will create <strong style="color:#fff;">3 private repos</strong> (kaanbal-api, kaanbal-console, infra-gitops) and configure GitHub Actions. <strong>Validation is required.</strong></p>
               <div style="display:flex;gap:8px;margin-bottom:16px;">
-                <button @click="creds.SF_GIT_PROVIDER='github'; wzValidated.git=false" :style="`flex:1;padding:10px;border-radius:8px;font-size:12px;font-weight:600;border:2px solid;transition:all .2s;` + (creds.SF_GIT_PROVIDER==='github' ? 'background:var(--accent-dim);border-color:var(--accent);color:var(--accent);' : 'background:var(--bg-elevated);border-color:var(--border-subtle);color:var(--text-muted);')">GitHub</button>
-                <button @click="creds.SF_GIT_PROVIDER='bitbucket'; wzValidated.git=false" :style="`flex:1;padding:10px;border-radius:8px;font-size:12px;font-weight:600;border:2px solid;transition:all .2s;` + (creds.SF_GIT_PROVIDER==='bitbucket' ? 'background:var(--accent-dim);border-color:var(--accent);color:var(--accent);' : 'background:var(--bg-elevated);border-color:var(--border-subtle);color:var(--text-muted);')">Bitbucket</button>
+                <button @click="creds.KB_GIT_PROVIDER='github'; wzValidated.git=false" :style="`flex:1;padding:10px;border-radius:8px;font-size:12px;font-weight:600;border:2px solid;transition:all .2s;` + (creds.KB_GIT_PROVIDER==='github' ? 'background:var(--accent-dim);border-color:var(--accent);color:var(--accent);' : 'background:var(--bg-elevated);border-color:var(--border-subtle);color:var(--text-muted);')">GitHub</button>
+                <button @click="creds.KB_GIT_PROVIDER='bitbucket'; wzValidated.git=false" :style="`flex:1;padding:10px;border-radius:8px;font-size:12px;font-weight:600;border:2px solid;transition:all .2s;` + (creds.KB_GIT_PROVIDER==='bitbucket' ? 'background:var(--accent-dim);border-color:var(--accent);color:var(--accent);' : 'background:var(--bg-elevated);border-color:var(--border-subtle);color:var(--text-muted);')">Bitbucket</button>
               </div>
               <div style="display:flex;flex-direction:column;gap:12px;">
                 <div>
-                  <label class="label" x-text="creds.SF_GIT_PROVIDER==='bitbucket' ? 'Email (Bitbucket requires email)' : 'Username'"></label>
-                  <input x-model="creds.SF_GIT_USER" class="input" @input="wzValidated.git=false" :placeholder="creds.SF_GIT_PROVIDER==='bitbucket' ? 'you@example.com' : 'your-github-username'">
+                  <label class="label" x-text="creds.KB_GIT_PROVIDER==='bitbucket' ? 'Email (Bitbucket requires email)' : 'Username'"></label>
+                  <input x-model="creds.KB_GIT_USER" class="input" @input="wzValidated.git=false" :placeholder="creds.KB_GIT_PROVIDER==='bitbucket' ? 'you@example.com' : 'your-github-username'">
                 </div>
-                <template x-if="creds.SF_GIT_PROVIDER==='bitbucket'">
+                <template x-if="creds.KB_GIT_PROVIDER==='bitbucket'">
                   <div>
                     <label class="label">Workspace Slug</label>
-                    <input x-model="creds.SF_GIT_WORKSPACE" class="input" @input="wzValidated.git=false" placeholder="my-workspace">
+                    <input x-model="creds.KB_GIT_WORKSPACE" class="input" @input="wzValidated.git=false" placeholder="my-workspace">
                   </div>
                 </template>
                 <div>
-                  <label class="label" x-text="creds.SF_GIT_PROVIDER==='bitbucket' ? 'App Password' : 'Personal Access Token'"></label>
-                  <input type="password" x-model="creds.SF_GIT_TOKEN" class="input" @input="wzValidated.git=false" placeholder="Token...">
+                  <label class="label" x-text="creds.KB_GIT_PROVIDER==='bitbucket' ? 'App Password' : 'Personal Access Token'"></label>
+                  <input type="password" x-model="creds.KB_GIT_TOKEN" class="input" @input="wzValidated.git=false" placeholder="Token...">
                 </div>
               </div>
               <!-- Validation feedback -->
@@ -483,7 +483,7 @@ body {
               </template>
               <div style="display:flex;gap:12px;margin-top:24px;">
                 <button @click="wizardStep=1" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
-                <button @click="wzValidateService('git')" :disabled="wzValidating.git || !creds.SF_GIT_USER || !creds.SF_GIT_TOKEN"
+                <button @click="wzValidateService('git')" :disabled="wzValidating.git || !creds.KB_GIT_USER || !creds.KB_GIT_TOKEN"
                   :style="`padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-secondary);transition:all .2s;` + (wzValidating.git ? 'opacity:.6;cursor:wait;' : '')"
                   x-text="wzValidating.git ? 'Testing...' : (wzValidated.git ? '✓ Re-test' : 'Test Connection')"></button>
                 <button @click="wizardNext()" :disabled="!wzValidated.git" class="btn btn-primary" style="flex:1;" :style="!wzValidated.git ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
@@ -500,11 +500,11 @@ body {
               <div style="display:flex;flex-direction:column;gap:12px;">
                 <div>
                   <label class="label">Docker Hub Username</label>
-                  <input x-model="creds.SF_DOCKER_USER" class="input" @input="wzValidated.docker=false" placeholder="your-dockerhub-user">
+                  <input x-model="creds.KB_DOCKER_USER" class="input" @input="wzValidated.docker=false" placeholder="your-dockerhub-user">
                 </div>
                 <div>
                   <label class="label">Access Token <span style="font-size:11px;color:var(--text-muted);">(starts with dckr_pat_)</span></label>
-                  <input type="password" x-model="creds.SF_DOCKER_TOKEN" class="input" @input="wzValidated.docker=false" placeholder="dckr_pat_...">
+                  <input type="password" x-model="creds.KB_DOCKER_TOKEN" class="input" @input="wzValidated.docker=false" placeholder="dckr_pat_...">
                 </div>
               </div>
               <template x-if="wzValidResult.docker">
@@ -515,7 +515,7 @@ body {
               </template>
               <div style="display:flex;gap:12px;margin-top:24px;">
                 <button @click="wizardStep=2" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
-                <button @click="wzValidateService('docker')" :disabled="wzValidating.docker || !creds.SF_DOCKER_USER || !creds.SF_DOCKER_TOKEN"
+                <button @click="wzValidateService('docker')" :disabled="wzValidating.docker || !creds.KB_DOCKER_USER || !creds.KB_DOCKER_TOKEN"
                   :style="`padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-secondary);transition:all .2s;` + (wzValidating.docker ? 'opacity:.6;cursor:wait;' : '')"
                   x-text="wzValidating.docker ? 'Testing...' : (wzValidated.docker ? '✓ Re-test' : 'Test Connection')"></button>
                 <button @click="wizardNext()" :disabled="!wzValidated.docker" class="btn btn-primary" style="flex:1;" :style="!wzValidated.docker ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
@@ -532,11 +532,11 @@ body {
               <div style="display:flex;flex-direction:column;gap:12px;">
                 <div>
                   <label class="label">Cloudflare API Token <span style="color:var(--danger);">*</span></label>
-                  <input type="password" x-model="creds.SF_CLOUDFLARE_TOKEN" class="input" @input="wzValidated.cloudflare=false" placeholder="PbnDTmq...">
+                  <input type="password" x-model="creds.KB_CLOUDFLARE_TOKEN" class="input" @input="wzValidated.cloudflare=false" placeholder="PbnDTmq...">
                 </div>
                 <div>
                   <label class="label">Account ID <span style="color:var(--danger);">*</span></label>
-                  <input x-model="creds.SF_CLOUDFLARE_ACCOUNT_ID" class="input" @input="wzValidated.cloudflare=false" placeholder="aec0b831b7379e82d545b63a0948c6a8">
+                  <input x-model="creds.KB_CLOUDFLARE_ACCOUNT_ID" class="input" @input="wzValidated.cloudflare=false" placeholder="aec0b831b7379e82d545b63a0948c6a8">
                   <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Found in the URL when logged in: <span style="color:var(--accent);">dash.cloudflare.com/{account-id}</span></div>
                 </div>
                 <div style="padding:10px 14px;border-radius:8px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);font-size:12px;color:var(--text-secondary);">
@@ -556,7 +556,7 @@ body {
               </template>
               <div style="display:flex;gap:12px;margin-top:24px;">
                 <button @click="wizardStep=3" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
-                <button @click="wzValidateService('cloudflare')" :disabled="wzValidating.cloudflare || !creds.SF_CLOUDFLARE_TOKEN || !creds.SF_CLOUDFLARE_ACCOUNT_ID"
+                <button @click="wzValidateService('cloudflare')" :disabled="wzValidating.cloudflare || !creds.KB_CLOUDFLARE_TOKEN || !creds.KB_CLOUDFLARE_ACCOUNT_ID"
                   :style="`padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-secondary);transition:all .2s;` + (wzValidating.cloudflare ? 'opacity:.6;cursor:wait;' : '')"
                   x-text="wzValidating.cloudflare ? 'Validating...' : (wzValidated.cloudflare ? '✓ Re-validate' : 'Validate Credentials')"></button>
                 <button @click="wizardNext()" :disabled="!wzValidated.cloudflare" class="btn btn-primary" style="flex:1;" :style="!wzValidated.cloudflare ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
@@ -573,19 +573,19 @@ body {
               <div style="display:flex;flex-direction:column;gap:12px;">
                 <div>
                   <label class="label">OAuth Client ID <span style="color:var(--danger);">*</span></label>
-                  <input x-model="creds.SF_TAILSCALE_CLIENT_ID" class="input" @input="wzValidated.tailscale=false" placeholder="kF...">
+                  <input x-model="creds.KB_TAILSCALE_CLIENT_ID" class="input" @input="wzValidated.tailscale=false" placeholder="kF...">
                 </div>
                 <div>
                   <label class="label">OAuth Client Secret <span style="color:var(--danger);">*</span></label>
-                  <input type="password" x-model="creds.SF_TAILSCALE_CLIENT_SECRET" class="input" @input="wzValidated.tailscale=false" placeholder="tskey-client-...">
+                  <input type="password" x-model="creds.KB_TAILSCALE_CLIENT_SECRET" class="input" @input="wzValidated.tailscale=false" placeholder="tskey-client-...">
                 </div>
                 <div>
                   <label class="label">MagicDNS Suffix <span style="color:var(--text-muted);font-weight:400;"> — e.g. tail1234.ts.net</span></label>
-                  <input x-model="creds.SF_TAILSCALE_DNS_SUFFIX" class="input" placeholder="tailXXXX.ts.net">
+                  <input x-model="creds.KB_TAILSCALE_DNS_SUFFIX" class="input" placeholder="tailXXXX.ts.net">
                 </div>
                 <div>
                   <label class="label">ACL Admin Token <span style="color:var(--danger);">*</span></label>
-                  <input type="password" x-model="creds.SF_TAILSCALE_ACL_TOKEN" class="input" @input="wzValidated.tailscale=false" placeholder="tskey-api-...">
+                  <input type="password" x-model="creds.KB_TAILSCALE_ACL_TOKEN" class="input" @input="wzValidated.tailscale=false" placeholder="tskey-api-...">
                   <div style="margin-top:6px;font-size:11px;color:var(--text-muted);">Required for automatic ACL/tagOwners fixes so Tailscale Operator can start without manual policy changes.</div>
                 </div>
               </div>
@@ -597,7 +597,7 @@ body {
               </template>
               <div style="display:flex;gap:12px;margin-top:24px;">
                 <button @click="wizardStep=4" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
-                <button @click="wzValidateService('tailscale')" :disabled="wzValidating.tailscale || !creds.SF_TAILSCALE_CLIENT_ID || !creds.SF_TAILSCALE_CLIENT_SECRET || !creds.SF_TAILSCALE_ACL_TOKEN"
+                <button @click="wzValidateService('tailscale')" :disabled="wzValidating.tailscale || !creds.KB_TAILSCALE_CLIENT_ID || !creds.KB_TAILSCALE_CLIENT_SECRET || !creds.KB_TAILSCALE_ACL_TOKEN"
                   :style="`padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-secondary);transition:all .2s;` + (wzValidating.tailscale ? 'opacity:.6;cursor:wait;' : '')"
                   x-text="wzValidating.tailscale ? 'Testing...' : (wzValidated.tailscale ? '✓ Re-test' : 'Test Connection')"></button>
                 <button @click="wizardNext()" :disabled="!wzValidated.tailscale" class="btn btn-primary" style="flex:1;" :style="!wzValidated.tailscale ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
@@ -610,31 +610,31 @@ body {
               <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">Everything is validated. Review the summary and click Start Installation to provision your platform.</p>
               <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px;">
                 <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
-                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Admin Account</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.SF_ADMIN_USER + ' / •••••••'"></div></div>
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Admin Account</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.KB_ADMIN_USER + ' / •••••••'"></div></div>
                   <div style="color:var(--ok);font-size:18px;">✓</div>
                 </div>
                 <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
-                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Control Plane Secrets</div><div style="font-size:11px;color:var(--text-muted);" x-text="'ArgoCD: ' + (creds.SF_ARGOCD_PASSWORD ? 'configured' : 'missing') + ' · Vault: ' + (creds.SF_VAULT_TOKEN ? 'configured' : 'missing')"></div></div>
-                  <div :style="(creds.SF_ARGOCD_PASSWORD && creds.SF_VAULT_TOKEN) ? 'color:var(--ok);font-size:18px;' : 'color:var(--danger);font-size:18px;'" x-text="(creds.SF_ARGOCD_PASSWORD && creds.SF_VAULT_TOKEN) ? '✓' : '✗'"></div>
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Control Plane Secrets</div><div style="font-size:11px;color:var(--text-muted);" x-text="'ArgoCD: ' + (creds.KB_ARGOCD_PASSWORD ? 'configured' : 'missing') + ' · Vault: ' + (creds.KB_VAULT_TOKEN ? 'configured' : 'missing')"></div></div>
+                  <div :style="(creds.KB_ARGOCD_PASSWORD && creds.KB_VAULT_TOKEN) ? 'color:var(--ok);font-size:18px;' : 'color:var(--danger);font-size:18px;'" x-text="(creds.KB_ARGOCD_PASSWORD && creds.KB_VAULT_TOKEN) ? '✓' : '✗'"></div>
                 </div>
                 <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
-                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Platform</div><div style="font-size:11px;color:var(--text-muted);" x-text="(creds.SF_MODE||'standalone') + ' · ' + (creds.SF_DOMAIN||'—')"></div></div>
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Platform</div><div style="font-size:11px;color:var(--text-muted);" x-text="(creds.KB_MODE||'standalone') + ' · ' + (creds.KB_DOMAIN||'—')"></div></div>
                   <div style="color:var(--ok);font-size:18px;">✓</div>
                 </div>
                 <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
-                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Git</div><div style="font-size:11px;color:var(--text-muted);" x-text="(creds.SF_GIT_PROVIDER||'—') + ' · ' + (creds.SF_GIT_USER||'—')"></div></div>
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Git</div><div style="font-size:11px;color:var(--text-muted);" x-text="(creds.KB_GIT_PROVIDER||'—') + ' · ' + (creds.KB_GIT_USER||'—')"></div></div>
                   <div style="color:var(--ok);font-size:18px;">✓</div>
                 </div>
                 <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
-                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Docker Hub</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.SF_DOCKER_USER||'—'"></div></div>
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Docker Hub</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.KB_DOCKER_USER||'—'"></div></div>
                   <div style="color:var(--ok);font-size:18px;">✓</div>
                 </div>
                 <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
-                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Cloudflare</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.SF_CLOUDFLARE_ACCOUNT_ID ? 'Account ID: ' + creds.SF_CLOUDFLARE_ACCOUNT_ID.substring(0,8) + '...' : '—'"></div></div>
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Cloudflare</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.KB_CLOUDFLARE_ACCOUNT_ID ? 'Account ID: ' + creds.KB_CLOUDFLARE_ACCOUNT_ID.substring(0,8) + '...' : '—'"></div></div>
                   <div style="color:var(--ok);font-size:18px;">✓</div>
                 </div>
                 <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
-                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Tailscale</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.SF_TAILSCALE_DNS_SUFFIX || creds.SF_TAILSCALE_CLIENT_ID || '—'"></div></div>
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">Tailscale</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.KB_TAILSCALE_DNS_SUFFIX || creds.KB_TAILSCALE_CLIENT_ID || '—'"></div></div>
                   <div style="color:var(--ok);font-size:18px;">✓</div>
                 </div>
               </div>
@@ -702,7 +702,7 @@ body {
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.5" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>
             </div>
             <h2 style="font-size:28px;font-weight:600;margin-bottom:12px;color:#fff;letter-spacing:-0.5px;">Platform Ready!</h2>
-            <p style="color:var(--text-secondary);line-height:1.6;margin-bottom:32px;">The Software Factory has been provisioned successfully. Your apps and services are now routing properly.</p>
+            <p style="color:var(--text-secondary);line-height:1.6;margin-bottom:32px;">The Kaanbal Engine has been provisioned successfully. Your apps and services are now routing properly.</p>
             
             <div class="surface-elevated" style="padding:24px;width:100%;text-align:left;margin-bottom:20px;">
               <h3 style="font-size:13px;font-weight:600;margin-bottom:16px;color:#fff;border-bottom:1px solid var(--border-subtle);padding-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Access Credentials</h3>
@@ -721,9 +721,9 @@ body {
             </div>
 
             <div style="padding:12px 14px;border-radius:10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);font-size:12px;color:#86efac;margin-bottom:12px;">
-              Install completed. Use Nexus Console to launch and manage your apps.
+              Install completed. Use Kaanbal Console to launch and manage your apps.
             </div>
-            <a :href="consoleUrl()" target="_blank" class="btn btn-primary" style="padding:14px 32px;font-size:15px;text-decoration:none;width:100%;">Open Nexus Console <svg style="margin-left:4px;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></a>
+            <a :href="consoleUrl()" target="_blank" class="btn btn-primary" style="padding:14px 32px;font-size:15px;text-decoration:none;width:100%;">Open Kaanbal Console <svg style="margin-left:4px;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></a>
           </div>
         </template>
         
@@ -768,30 +768,30 @@ function installer(){return{
   wzValidResult:{ git:null,  docker:null,  cloudflare:null,  tailscale:null  },
   activeModal: null,
   creds: {
-    SF_MODE: 'standalone',
-    SF_DOMAIN: '',
-    SF_TAILSCALE_ENABLED: 'true',
-    SF_TAILSCALE_CLIENT_ID: '',
-    SF_TAILSCALE_CLIENT_SECRET: '',
-    SF_TAILSCALE_DNS_SUFFIX: '',
-    SF_TAILSCALE_ACL_TOKEN: '',
-    SF_CLOUDFLARE_TOKEN: '',
-    SF_CLOUDFLARE_ACCOUNT_ID: '',
-    SF_GIT_PROVIDER: 'github',
-    SF_GIT_USER: '',
-    SF_GIT_EMAIL: '',
-    SF_GIT_TOKEN: '',
-    SF_GIT_WORKSPACE: '',
-    SF_DOCKER_USER: '',
-    SF_DOCKER_TOKEN: '',
-    SF_AWS_ACCESS_KEY: '',
-    SF_AWS_SECRET_KEY: '',
-    SF_AWS_REGION: 'us-east-1',
-    SF_ADMIN_USER: 'admin',
-    SF_ADMIN_PASSWORD: '',
-    SF_ADMIN_PASS: '',
-    SF_ARGOCD_PASSWORD: '',
-    SF_VAULT_TOKEN: ''
+    KB_MODE: 'standalone',
+    KB_DOMAIN: '',
+    KB_TAILSCALE_ENABLED: 'true',
+    KB_TAILSCALE_CLIENT_ID: '',
+    KB_TAILSCALE_CLIENT_SECRET: '',
+    KB_TAILSCALE_DNS_SUFFIX: '',
+    KB_TAILSCALE_ACL_TOKEN: '',
+    KB_CLOUDFLARE_TOKEN: '',
+    KB_CLOUDFLARE_ACCOUNT_ID: '',
+    KB_GIT_PROVIDER: 'github',
+    KB_GIT_USER: '',
+    KB_GIT_EMAIL: '',
+    KB_GIT_TOKEN: '',
+    KB_GIT_WORKSPACE: '',
+    KB_DOCKER_USER: '',
+    KB_DOCKER_TOKEN: '',
+    KB_AWS_ACCESS_KEY: '',
+    KB_AWS_SECRET_KEY: '',
+    KB_AWS_REGION: 'us-east-1',
+    KB_ADMIN_USER: 'admin',
+    KB_ADMIN_PASSWORD: '',
+    KB_ADMIN_PASS: '',
+    KB_ARGOCD_PASSWORD: '',
+    KB_VAULT_TOKEN: ''
   },
   validationErrors: [], validationWarnings: [], isValidating: false,
   adminUser:'', adminPass:'', terminalHeight: 280,
@@ -802,8 +802,8 @@ function installer(){return{
   get isFinalStep(){return this.currentStep?.id==='11-finalize';},
 
   consoleUrl(){
-    if(this.creds.SF_DOMAIN && this.creds.SF_DOMAIN !== 'localhost'){
-      return 'https://nexus-console.' + this.creds.SF_DOMAIN;
+    if(this.creds.KB_DOMAIN && this.creds.KB_DOMAIN !== 'localhost'){
+      return 'https://kaanbal-console.' + this.creds.KB_DOMAIN;
     }
     return 'http://localhost:30080';
   },
@@ -952,28 +952,28 @@ function installer(){return{
 
   async submitCredentials(){
     const body={
-      SF_MODE: this.creds.SF_MODE,
-      SF_DOMAIN: this.creds.SF_DOMAIN,
-      SF_TAILSCALE_ENABLED: "true",
-      SF_TAILSCALE_CLIENT_ID: this.creds.SF_TAILSCALE_CLIENT_ID,
-      SF_TAILSCALE_CLIENT_SECRET: this.creds.SF_TAILSCALE_CLIENT_SECRET,
-      SF_TAILSCALE_DNS_SUFFIX: this.creds.SF_TAILSCALE_DNS_SUFFIX,
-      SF_TAILSCALE_ACL_TOKEN: this.creds.SF_TAILSCALE_ACL_TOKEN,
-      SF_CLOUDFLARE_TOKEN: this.creds.SF_CLOUDFLARE_TOKEN,
-      SF_CLOUDFLARE_ACCOUNT_ID: this.creds.SF_CLOUDFLARE_ACCOUNT_ID,
-      SF_GIT_PROVIDER: this.creds.SF_GIT_PROVIDER,
-      SF_GIT_USER: this.creds.SF_GIT_USER,
-      SF_GIT_EMAIL: this.creds.SF_GIT_EMAIL || this.creds.SF_GIT_USER,
-      SF_GIT_TOKEN: this.creds.SF_GIT_TOKEN,
-      SF_GIT_WORKSPACE: this.creds.SF_GIT_WORKSPACE || this.creds.SF_GIT_USER,
-      SF_DOCKER_USER: this.creds.SF_DOCKER_USER,
-      SF_DOCKER_TOKEN: this.creds.SF_DOCKER_TOKEN,
-      SF_ADMIN_USER: this.creds.SF_ADMIN_USER,
-      SF_ADMIN_PASSWORD: this.creds.SF_ADMIN_PASSWORD,
-      SF_ADMIN_PASS: this.creds.SF_ADMIN_PASSWORD,
-      SF_ARGOCD_PASSWORD: this.creds.SF_ARGOCD_PASSWORD,
-      SF_VAULT_TOKEN: this.creds.SF_VAULT_TOKEN,
-      SF_VAULT_ROOT_TOKEN: this.creds.SF_VAULT_TOKEN
+      KB_MODE: this.creds.KB_MODE,
+      KB_DOMAIN: this.creds.KB_DOMAIN,
+      KB_TAILSCALE_ENABLED: "true",
+      KB_TAILSCALE_CLIENT_ID: this.creds.KB_TAILSCALE_CLIENT_ID,
+      KB_TAILSCALE_CLIENT_SECRET: this.creds.KB_TAILSCALE_CLIENT_SECRET,
+      KB_TAILSCALE_DNS_SUFFIX: this.creds.KB_TAILSCALE_DNS_SUFFIX,
+      KB_TAILSCALE_ACL_TOKEN: this.creds.KB_TAILSCALE_ACL_TOKEN,
+      KB_CLOUDFLARE_TOKEN: this.creds.KB_CLOUDFLARE_TOKEN,
+      KB_CLOUDFLARE_ACCOUNT_ID: this.creds.KB_CLOUDFLARE_ACCOUNT_ID,
+      KB_GIT_PROVIDER: this.creds.KB_GIT_PROVIDER,
+      KB_GIT_USER: this.creds.KB_GIT_USER,
+      KB_GIT_EMAIL: this.creds.KB_GIT_EMAIL || this.creds.KB_GIT_USER,
+      KB_GIT_TOKEN: this.creds.KB_GIT_TOKEN,
+      KB_GIT_WORKSPACE: this.creds.KB_GIT_WORKSPACE || this.creds.KB_GIT_USER,
+      KB_DOCKER_USER: this.creds.KB_DOCKER_USER,
+      KB_DOCKER_TOKEN: this.creds.KB_DOCKER_TOKEN,
+      KB_ADMIN_USER: this.creds.KB_ADMIN_USER,
+      KB_ADMIN_PASSWORD: this.creds.KB_ADMIN_PASSWORD,
+      KB_ADMIN_PASS: this.creds.KB_ADMIN_PASSWORD,
+      KB_ARGOCD_PASSWORD: this.creds.KB_ARGOCD_PASSWORD,
+      KB_VAULT_TOKEN: this.creds.KB_VAULT_TOKEN,
+      KB_VAULT_ROOT_TOKEN: this.creds.KB_VAULT_TOKEN
     };
     this.isRunning=true;
     const s=this.steps.find(x=>x.id==='04-credentials');
@@ -1003,10 +1003,10 @@ function installer(){return{
       const d = await r.json();
       // Each service has its own errors/warnings — filter relevant ones
       const fieldMap = {
-        git:        ['SF_GIT_USER','SF_GIT_TOKEN','SF_GIT_EMAIL','SF_GIT_WORKSPACE'],
-        docker:     ['SF_DOCKER_USER','SF_DOCKER_TOKEN'],
-        cloudflare: ['SF_CLOUDFLARE_TOKEN','SF_CLOUDFLARE_ACCOUNT_ID'],
-        tailscale:  ['SF_TAILSCALE_CLIENT_ID','SF_TAILSCALE_CLIENT_SECRET','SF_TAILSCALE_ACL_TOKEN']
+        git:        ['KB_GIT_USER','KB_GIT_TOKEN','KB_GIT_EMAIL','KB_GIT_WORKSPACE'],
+        docker:     ['KB_DOCKER_USER','KB_DOCKER_TOKEN'],
+        cloudflare: ['KB_CLOUDFLARE_TOKEN','KB_CLOUDFLARE_ACCOUNT_ID'],
+        tailscale:  ['KB_TAILSCALE_CLIENT_ID','KB_TAILSCALE_CLIENT_SECRET','KB_TAILSCALE_ACL_TOKEN']
       };
       const fields = fieldMap[service] || [];
       const errs = (d.errors||[]).filter(e=>fields.includes(e.field)||fields.length===0);

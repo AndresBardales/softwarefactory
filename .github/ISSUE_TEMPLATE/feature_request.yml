@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Have an idea to improve Software Factory? We'd love to hear it!
+        Have an idea to improve Kaanbal Engine? We'd love to hear it!
 
   - type: textarea
     id: problem
@@ -29,10 +29,10 @@ body:
       label: Area
       options:
         - Installer
-        - Dashboard (nexus-console)
-        - API (nexus-api)
+        - Dashboard (kaanbal-console)
+        - API (kaanbal-api)
         - Templates
-        - CLI (sf command)
+        - CLI (kb command)
         - Documentation
         - Other
 

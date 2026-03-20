@@ -40,7 +40,7 @@ fi
 # ---------------------------------------------------------------
 echo ""
 log_step "Platform services (prod)"
-for deploy in datastore nexus-api nexus-console; do
+for deploy in datastore kaanbal-api kaanbal-console; do
   if kubectl get deployment "$deploy" -n prod &>/dev/null; then
     ready=$(kubectl get deployment "$deploy" -n prod \
             -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
@@ -67,14 +67,14 @@ done
 echo ""
 log_step "HTTP endpoints"
 if curl -sf --max-time 5 -o /dev/null "http://localhost:30080" 2>/dev/null; then
-  check_ok "nexus-console  http://localhost:30080"
+  check_ok "kaanbal-console  http://localhost:30080"
 else
-  check_warn "nexus-console  not reachable on :30080"
+  check_warn "kaanbal-console  not reachable on :30080"
 fi
 if curl -sf --max-time 5 -o /dev/null "http://localhost:30081/health" 2>/dev/null; then
-  check_ok "nexus-api      http://localhost:30081/health"
+  check_ok "kaanbal-api      http://localhost:30081/health"
 else
-  check_warn "nexus-api      not reachable on :30081/health"
+  check_warn "kaanbal-api      not reachable on :30081/health"
 fi
 
 # ---------------------------------------------------------------
@@ -82,19 +82,19 @@ fi
 # ---------------------------------------------------------------
 echo ""
 log_step "Control plane secrets"
-if [ -n "${SF_ADMIN_PASSWORD:-${SF_ADMIN_PASS:-}}" ]; then
+if [ -n "${KB_ADMIN_PASSWORD:-${KB_ADMIN_PASS:-}}" ]; then
   check_ok "Admin password: configured"
 else
   check_fail "Admin password: missing in config.env"
 fi
 
-if [ -n "${SF_ARGOCD_PASSWORD:-}" ]; then
+if [ -n "${KB_ARGOCD_PASSWORD:-}" ]; then
   check_ok "ArgoCD password: configured"
 else
   check_fail "ArgoCD password: missing in config.env"
 fi
 
-if [ -n "${SF_VAULT_TOKEN:-${SF_VAULT_ROOT_TOKEN:-}}" ]; then
+if [ -n "${KB_VAULT_TOKEN:-${KB_VAULT_ROOT_TOKEN:-}}" ]; then
   check_ok "Vault token: configured"
 else
   check_fail "Vault token: missing in config.env"
@@ -103,7 +103,7 @@ fi
 # ---------------------------------------------------------------
 # 4. ArgoCD (cloud/hybrid only)
 # ---------------------------------------------------------------
-if [ "${SF_MODE:-standalone}" != "standalone" ] && [ "${SF_MODE:-local}" != "local" ]; then
+if [ "${KB_MODE:-standalone}" != "standalone" ] && [ "${KB_MODE:-local}" != "local" ]; then
   echo ""
   log_step "ArgoCD (GitOps)"
   argocd_running=$(pod_ready "argocd" "app.kubernetes.io/name=argocd-server")
@@ -154,7 +154,7 @@ if [ "${SF_MODE:-standalone}" != "standalone" ] && [ "${SF_MODE:-local}" != "loc
   # ---------------------------------------------------------------
   # 6. Tailscale Operator
   # ---------------------------------------------------------------
-  if [ "${SF_TAILSCALE_ENABLED:-false}" = "true" ]; then
+  if [ "${KB_TAILSCALE_ENABLED:-false}" = "true" ]; then
     echo ""
     log_step "Tailscale VPN"
     ts_running=$(pod_ready "tailscale" "app=tailscale-operator")
@@ -180,13 +180,13 @@ if [ "${SF_MODE:-standalone}" != "standalone" ] && [ "${SF_MODE:-local}" != "loc
   # ---------------------------------------------------------------
   # 8. Cloud domain reachability (hybrid mode)
   # ---------------------------------------------------------------
-  if [ -n "${SF_DOMAIN:-}" ]; then
+  if [ -n "${KB_DOMAIN:-}" ]; then
     echo ""
-    log_step "Domain reachability (${SF_DOMAIN})"
-    if curl -sf --max-time 10 -o /dev/null "https://nexus-console.${SF_DOMAIN}" 2>/dev/null; then
-      check_ok "https://nexus-console.${SF_DOMAIN}: reachable"
+    log_step "Domain reachability (${KB_DOMAIN})"
+    if curl -sf --max-time 10 -o /dev/null "https://kaanbal-console.${KB_DOMAIN}" 2>/dev/null; then
+      check_ok "https://kaanbal-console.${KB_DOMAIN}: reachable"
     else
-      check_warn "https://nexus-console.${SF_DOMAIN}: not yet reachable (DNS/TLS may still be propagating)"
+      check_warn "https://kaanbal-console.${KB_DOMAIN}: not yet reachable (DNS/TLS may still be propagating)"
     fi
   fi
 fi

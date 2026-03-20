@@ -58,6 +58,6 @@ body:
   - type: input
     id: version
     attributes:
-      label: Software Factory Version
-      description: Run `sf --version` or check the release tag
+      label: Kaanbal Engine Version
+      description: Run `kb --version` or check the release tag
       placeholder: v0.2.0

@@ -13,12 +13,12 @@ install_core_infra() {
   fi
 
   # Derive defaults
-  SF_ENABLE_TLS="${SF_ENABLE_TLS:-false}"
-  [ "$SF_MODE" != "local" ] && SF_ENABLE_TLS="true"
+  KB_ENABLE_TLS="${KB_ENABLE_TLS:-false}"
+  [ "$KB_MODE" != "local" ] && KB_ENABLE_TLS="true"
 
   # Create namespaces (minimal set for local, full set otherwise)
   log_step "Creating namespaces..."
-  if [ "$SF_MODE" = "local" ]; then
+  if [ "$KB_MODE" = "local" ]; then
     for ns in prod dev staging; do
       kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || \
         log_warn "Failed to create namespace $ns — continuing"
@@ -37,7 +37,7 @@ install_core_infra() {
   # Local mode with pure localhost: skip Ingress (NodePort is enough)
   # Local mode with nip.io domain: install Ingress for domain routing
   local install_ingress=true
-  [ "$SF_MODE" = "local" ] && [ "${SF_DOMAIN:-localhost}" = "localhost" ] && install_ingress=false
+  [ "$KB_MODE" = "local" ] && [ "${KB_DOMAIN:-localhost}" = "localhost" ] && install_ingress=false
 
   if [ "$install_ingress" = true ]; then
     kubectl create namespace ingress-nginx --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
@@ -64,7 +64,7 @@ install_core_infra() {
   # --------------------------------------------------
   # 2. cert-manager (TLS — cloud/hybrid only)
   # --------------------------------------------------
-  if [ "$SF_ENABLE_TLS" = "true" ]; then
+  if [ "$KB_ENABLE_TLS" = "true" ]; then
     kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
     log_step "Installing cert-manager..."
     if helm repo add jetstack https://charts.jetstack.io 2>/dev/null && \
@@ -82,7 +82,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: ${SF_GIT_EMAIL:-admin@${SF_DOMAIN:-localhost}}
+    email: ${KB_GIT_EMAIL:-admin@${KB_DOMAIN:-localhost}}
     privateKeySecretRef:
       name: letsencrypt-prod-key
     solvers:
@@ -104,7 +104,7 @@ EOF
   # --------------------------------------------------
   # 3. ArgoCD (cloud/hybrid only — too heavy for local WSL2)
   # --------------------------------------------------
-  if [ "$SF_MODE" != "local" ]; then
+  if [ "$KB_MODE" != "local" ]; then
     kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
     log_step "Installing ArgoCD..."
     if ! helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || \
@@ -113,18 +113,18 @@ EOF
     else
       local argocd_bcrypt=""
       if command -v htpasswd &>/dev/null; then
-        argocd_bcrypt=$(htpasswd -nbBC 10 "" "$SF_ARGOCD_PASSWORD" 2>/dev/null | tr -d ':\n' | sed 's/$2y/$2a/' || echo "")
+        argocd_bcrypt=$(htpasswd -nbBC 10 "" "$KB_ARGOCD_PASSWORD" 2>/dev/null | tr -d ':\n' | sed 's/$2y/$2a/' || echo "")
       elif command -v python3 &>/dev/null; then
         argocd_bcrypt=$(python3 -c "
 import bcrypt
-hashed = bcrypt.hashpw(b'${SF_ARGOCD_PASSWORD}', bcrypt.gensalt(rounds=10))
+hashed = bcrypt.hashpw(b'${KB_ARGOCD_PASSWORD}', bcrypt.gensalt(rounds=10))
 print(hashed.decode())
 " 2>/dev/null || echo "")
         if [ -z "$argocd_bcrypt" ]; then
           pip3 install bcrypt -q 2>/dev/null
           argocd_bcrypt=$(python3 -c "
 import bcrypt
-hashed = bcrypt.hashpw(b'${SF_ARGOCD_PASSWORD}', bcrypt.gensalt(rounds=10))
+hashed = bcrypt.hashpw(b'${KB_ARGOCD_PASSWORD}', bcrypt.gensalt(rounds=10))
 print(hashed.decode())
 " 2>/dev/null || echo "")
         fi
@@ -148,13 +148,13 @@ print(hashed.decode())
         log_info "ArgoCD installed"
 
         # Git credentials for ArgoCD (repo-creds type for URL-prefix matching)
-        if [ -n "${SF_GIT_TOKEN:-}" ]; then
+        if [ -n "${KB_GIT_TOKEN:-}" ]; then
           log_step "Configuring Git credentials for ArgoCD..."
           local git_url_prefix="" git_username="" git_password=""
-          case "$SF_GIT_PROVIDER" in
-            bitbucket) git_url_prefix="https://bitbucket.org/${SF_GIT_WORKSPACE}"; git_username="${SF_GIT_USER}"; git_password="${SF_GIT_TOKEN}" ;;
-            github)    git_url_prefix="https://github.com/${SF_GIT_WORKSPACE}"; git_username="${SF_GIT_USER}"; git_password="${SF_GIT_TOKEN}" ;;
-            gitlab)    git_url_prefix="https://gitlab.com/${SF_GIT_WORKSPACE}"; git_username="oauth2"; git_password="${SF_GIT_TOKEN}" ;;
+          case "$KB_GIT_PROVIDER" in
+            bitbucket) git_url_prefix="https://bitbucket.org/${KB_GIT_WORKSPACE}"; git_username="${KB_GIT_USER}"; git_password="${KB_GIT_TOKEN}" ;;
+            github)    git_url_prefix="https://github.com/${KB_GIT_WORKSPACE}"; git_username="${KB_GIT_USER}"; git_password="${KB_GIT_TOKEN}" ;;
+            gitlab)    git_url_prefix="https://gitlab.com/${KB_GIT_WORKSPACE}"; git_username="oauth2"; git_password="${KB_GIT_TOKEN}" ;;
           esac
           if [ -n "$git_url_prefix" ]; then
             # Delete old-format secret if it exists (type=repository with embedded creds)
@@ -176,10 +176,10 @@ print(hashed.decode())
           # Step 06 pushes the infra-gitops repo which contains ApplicationSets.
           # Once that repo is live, ArgoCD will discover and sync all apps automatically.
           local _infra_git_url=""
-          case "$SF_GIT_PROVIDER" in
-            bitbucket) _infra_git_url="https://bitbucket.org/${SF_GIT_WORKSPACE}/infra-gitops.git" ;;
-            github)    _infra_git_url="https://github.com/${SF_GIT_WORKSPACE}/infra-gitops.git" ;;
-            gitlab)    _infra_git_url="https://gitlab.com/${SF_GIT_WORKSPACE}/infra-gitops.git" ;;
+          case "$KB_GIT_PROVIDER" in
+            bitbucket) _infra_git_url="https://bitbucket.org/${KB_GIT_WORKSPACE}/infra-gitops.git" ;;
+            github)    _infra_git_url="https://github.com/${KB_GIT_WORKSPACE}/infra-gitops.git" ;;
+            gitlab)    _infra_git_url="https://gitlab.com/${KB_GIT_WORKSPACE}/infra-gitops.git" ;;
           esac
           if [ -n "$_infra_git_url" ]; then
             cat <<ARGOAPP | kubectl apply -f - 2>/dev/null || log_warn "ArgoCD bootstrap Application failed to apply"
@@ -223,7 +223,7 @@ ARGOAPP
   # --------------------------------------------------
   # 4. Vault (cloud/hybrid only)
   # --------------------------------------------------
-  if [ "$SF_MODE" != "local" ]; then
+  if [ "$KB_MODE" != "local" ]; then
     kubectl create namespace vault --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
     log_step "Installing Vault..."
     if helm repo add hashicorp https://helm.releases.hashicorp.com 2>/dev/null && \
@@ -279,9 +279,9 @@ ARGOAPP
             key3=$(python3 -c "import json,sys; d=json.load(sys.stdin); print(d['unseal_keys_b64'][2])" < "$keys_file")
 
             # Persist root token to config.env for downstream use
-            echo "SF_VAULT_ROOT_TOKEN=${vault_root_token}" >> "${CONFIG_DIR:-$HOME/.software-factory}/config.env"
-            echo "SF_VAULT_TOKEN=${vault_root_token}" >> "${CONFIG_DIR:-$HOME/.software-factory}/config.env"
-            echo "SF_VAULT_ADDR=http://vault.vault.svc.cluster.local:8200" >> "${CONFIG_DIR:-$HOME/.software-factory}/config.env"
+            echo "KB_VAULT_ROOT_TOKEN=${vault_root_token}" >> "${CONFIG_DIR:-$HOME/.software-factory}/config.env"
+            echo "KB_VAULT_TOKEN=${vault_root_token}" >> "${CONFIG_DIR:-$HOME/.software-factory}/config.env"
+            echo "KB_VAULT_ADDR=http://vault.vault.svc.cluster.local:8200" >> "${CONFIG_DIR:-$HOME/.software-factory}/config.env"
 
             # Store in K8s Secret so pods can bootstrap themselves
             kubectl create secret generic vault-init-keys -n vault \
@@ -321,10 +321,10 @@ ARGOAPP
                   kubernetes_host="https://kubernetes.default.svc.cluster.local:443" \
                   &>/dev/null || log_warn "Vault K8s auth config failed — configure manually"
 
-              # Create a policy for nexus-api to manage app secrets per environment.
+              # Create a policy for kaanbal-api to manage app secrets per environment.
               # kv-v2 requires both data/ and metadata/ paths for full list/read/write flows.
               kubectl exec -n vault "$vault_pod" -- env VAULT_TOKEN="$vault_root_token" \
-                vault policy write nexus-api-policy - <<'VPOL' &>/dev/null || true
+                vault policy write kaanbal-api-policy - <<'VPOL' &>/dev/null || true
 path "secret/data/dev/*" {
   capabilities = ["create", "read", "update", "delete", "list"]
 }
@@ -349,20 +349,20 @@ path "secret/data/apps/*" {
 path "secret/metadata/apps/*" {
   capabilities = ["read", "list"]
 }
-path "secret/data/nexus-api/*" {
+path "secret/data/kaanbal-api/*" {
   capabilities = ["read", "list"]
 }
-path "secret/metadata/nexus-api/*" {
+path "secret/metadata/kaanbal-api/*" {
   capabilities = ["read", "list"]
 }
 VPOL
 
-              # Create auth role for nexus-api service account
+              # Create auth role for kaanbal-api service account
               kubectl exec -n vault "$vault_pod" -- env VAULT_TOKEN="$vault_root_token" \
-                vault write auth/kubernetes/role/nexus-api \
-                  bound_service_account_names=default,nexus-api \
+                vault write auth/kubernetes/role/kaanbal-api \
+                  bound_service_account_names=default,kaanbal-api \
                   bound_service_account_namespaces=prod \
-                  policies=nexus-api-policy \
+                  policies=kaanbal-api-policy \
                   ttl=24h \
                   &>/dev/null || log_warn "Vault role creation failed — configure manually"
 
@@ -385,20 +385,20 @@ VPOL
   # --------------------------------------------------
   # 5. Tailscale Operator (if enabled)
   # --------------------------------------------------
-  if [ "${SF_TAILSCALE_ENABLED:-false}" = "true" ]; then
+  if [ "${KB_TAILSCALE_ENABLED:-false}" = "true" ]; then
     kubectl create namespace tailscale --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
     log_step "Installing Tailscale Operator..."
-    if [ -z "${SF_TAILSCALE_CLIENT_ID:-}" ] || [ -z "${SF_TAILSCALE_CLIENT_SECRET:-}" ]; then
+    if [ -z "${KB_TAILSCALE_CLIENT_ID:-}" ] || [ -z "${KB_TAILSCALE_CLIENT_SECRET:-}" ]; then
       log_warn "Tailscale credentials missing — skipping Tailscale Operator"
     elif helm repo add tailscale https://pkgs.tailscale.com/helmcharts 2>/dev/null && \
          helm repo update tailscale 2>/dev/null; then
 
       # ---- Pre-flight: Configure ACL tagOwners BEFORE installing operator ----
       # Without tag:k8s-operator in tagOwners, the operator will CrashLoopBackOff.
-      if [ -n "${SF_TAILSCALE_ACL_TOKEN:-}" ]; then
+      if [ -n "${KB_TAILSCALE_ACL_TOKEN:-}" ]; then
         log_step "Configuring Tailscale ACL tagOwners..."
         local acl_response
-        acl_response=$(curl -sf -u "${SF_TAILSCALE_ACL_TOKEN}:" \
+        acl_response=$(curl -sf -u "${KB_TAILSCALE_ACL_TOKEN}:" \
           https://api.tailscale.com/api/v2/tailnet/-/acl 2>/dev/null || echo "")
         if [ -n "$acl_response" ]; then
           # Build new ACL with required tagOwners (preserving existing grants/ssh)
@@ -431,7 +431,7 @@ print(json.dumps(acl))
           if [ -n "$new_acl" ]; then
             local acl_status
             acl_status=$(curl -sf -o /dev/null -w '%{http_code}' \
-              -X POST -u "${SF_TAILSCALE_ACL_TOKEN}:" \
+              -X POST -u "${KB_TAILSCALE_ACL_TOKEN}:" \
               -H 'Content-Type: application/json' \
               -d "$new_acl" \
               https://api.tailscale.com/api/v2/tailnet/-/acl 2>/dev/null || echo "000")
@@ -447,7 +447,7 @@ print(json.dumps(acl))
           log_warn "Cannot read Tailscale ACL (API error) — operator may fail to start"
         fi
       else
-        log_warn "No SF_TAILSCALE_ACL_TOKEN — skipping ACL tagOwners setup (operator may fail)"
+        log_warn "No KB_TAILSCALE_ACL_TOKEN — skipping ACL tagOwners setup (operator may fail)"
       fi
 
       # Remove any pre-existing operator-oauth secret that lacks Helm labels
@@ -455,8 +455,8 @@ print(json.dumps(acl))
       kubectl delete secret operator-oauth -n tailscale --ignore-not-found 2>/dev/null || true
       if helm upgrade --install tailscale-operator tailscale/tailscale-operator \
         -n tailscale \
-        --set oauth.clientId="$SF_TAILSCALE_CLIENT_ID" \
-        --set oauth.clientSecret="$SF_TAILSCALE_CLIENT_SECRET" \
+        --set oauth.clientId="$KB_TAILSCALE_CLIENT_ID" \
+        --set oauth.clientSecret="$KB_TAILSCALE_CLIENT_SECRET" \
         --set operatorConfig.hostname="sf-operator" \
         --wait --timeout 300s 2>&1; then
         log_info "Tailscale Operator installed"
@@ -476,16 +476,16 @@ print(json.dumps(acl))
   # NOTE: Tunnel is primarily handled by lib/07-tunnel.sh (auto-creates from API token).
   # This section is only a fallback for manual tunnel tokens provided directly.
   # Skip if we're in hybrid mode (07-tunnel.sh will handle it after install_core_infra).
-  if [ "${SF_MODE:-local}" = "hybrid" ] && [ -n "${SF_CLOUDFLARE_TOKEN:-}" ]; then
+  if [ "${KB_MODE:-local}" = "hybrid" ] && [ -n "${KB_CLOUDFLARE_TOKEN:-}" ]; then
     log_info "Cloudflare Tunnel will be auto-created after core services (lib/07-tunnel.sh)"
-  elif [ -n "${SF_CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
+  elif [ -n "${KB_CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
     log_step "Installing Cloudflare Tunnel (cloudflared) from manual token..."
     kubectl create namespace cloudflare --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
 
     # Store token in a K8s Secret — never expose it as a plaintext env var in the Deployment spec
     kubectl create secret generic cloudflare-tunnel-token \
       -n cloudflare \
-      --from-literal=token="${SF_CLOUDFLARE_TUNNEL_TOKEN}" \
+      --from-literal=token="${KB_CLOUDFLARE_TUNNEL_TOKEN}" \
       --dry-run=client -o yaml | kubectl apply -f -
 
     cat <<YAML | kubectl apply -f -
@@ -531,16 +531,16 @@ YAML
   # --------------------------------------------------
   # 7. Docker Hub credentials (only if provided)
   # --------------------------------------------------
-  local _docker_user="${SF_DOCKER_USER:-${SF_DOCKER_USERNAME:-}}"
-  if [ -n "${SF_DOCKER_TOKEN:-}" ] && [ -n "$_docker_user" ]; then
+  local _docker_user="${KB_DOCKER_USER:-${KB_DOCKER_USERNAME:-}}"
+  if [ -n "${KB_DOCKER_TOKEN:-}" ] && [ -n "$_docker_user" ]; then
     log_step "Configuring Docker Hub credentials..."
     for ns in prod dev staging; do
       kubectl create secret docker-registry dockerhub-credentials \
         -n "$ns" \
         --docker-server=https://index.docker.io/v1/ \
         --docker-username="$_docker_user" \
-        --docker-password="$SF_DOCKER_TOKEN" \
-        --docker-email="${SF_GIT_EMAIL:-noreply@softwarefactory.dev}" \
+        --docker-password="$KB_DOCKER_TOKEN" \
+        --docker-email="${KB_GIT_EMAIL:-noreply@softwarefactory.dev}" \
         --dry-run=client -o yaml | kubectl apply -f -
     done
     log_info "Docker Hub credentials configured"

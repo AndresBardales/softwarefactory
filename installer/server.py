@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Software Factory Installer — Dashboard Server
+Kaanbal Engine Installer — Dashboard Server
 Python stdlib only (no pip). Serves the installer UI and runs installation steps.
 """
 
@@ -23,12 +23,12 @@ from urllib.parse import parse_qs, urlparse
 INSTALLER_DIR = Path(__file__).resolve().parent
 STEPS_DIR = INSTALLER_DIR / "steps"
 UI_DIR = INSTALLER_DIR / "ui"
-CONFIG_DIR = Path.home() / ".software-factory"
+CONFIG_DIR = Path.home() / ".kaanbal"
 CONFIG_FILE = CONFIG_DIR / "config.env"
 INSTALLER_ENV = CONFIG_DIR / "installer.env"
 
 PORT = int(os.environ.get("INSTALLER_PORT", 3000))
-TOKEN = os.environ.get("SF_SETUP_TOKEN", "")
+TOKEN = os.environ.get("KB_SETUP_TOKEN", "")
 
 # ---------------------------------------------------------------------------
 # Step definitions
@@ -55,8 +55,8 @@ STEPS_META = {
     "05-core-services":    {"title": "Core Services",      "desc": "Ingress, cert-manager, namespaces", "auto": True},
     "06-source-repos":     {"title": "Source Repos",       "desc": "Create repos, pipelines & Docker images", "auto": True},
     "07-database":         {"title": "Database",           "desc": "MongoDB 7 with persistent storage", "auto": True},
-    "08-platform-api":     {"title": "Platform API",       "desc": "nexus-api (FastAPI backend)",       "auto": True},
-    "09-platform-console": {"title": "Platform Console",   "desc": "nexus-console (Vue 3 frontend)",    "auto": True},
+    "08-platform-api":     {"title": "Platform API",       "desc": "kaanbal-api (FastAPI backend)",       "auto": True},
+    "09-platform-console": {"title": "Platform Console",   "desc": "kaanbal-console (Vue 3 frontend)",    "auto": True},
     "10-health-check":     {"title": "Health Check",       "desc": "Verify all services are running",   "auto": True},
     "11-finalize":         {"title": "Ready!",             "desc": "Platform is ready to use",          "auto": True},
 }
@@ -160,7 +160,7 @@ def run_step(step_id, env_extra=None):
 
     env = {**os.environ}
     env["INSTALLER_DIR"] = str(INSTALLER_DIR)
-    env["SF_SETUP_TOKEN"] = TOKEN
+    env["KB_SETUP_TOKEN"] = TOKEN
     env["TERM"] = "dumb"           # no ANSI cursor control
     env["DEBIAN_FRONTEND"] = "noninteractive"
     if env_extra:
@@ -377,26 +377,26 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
     def _handle_credentials(self, body):
         if not self._check_token():
             return
-        argocd_password = (body.get("SF_ARGOCD_PASSWORD") or "").strip()
-        vault_token = (body.get("SF_VAULT_TOKEN") or body.get("SF_VAULT_ROOT_TOKEN") or "").strip()
+        argocd_password = (body.get("KB_ARGOCD_PASSWORD") or "").strip()
+        vault_token = (body.get("KB_VAULT_TOKEN") or body.get("KB_VAULT_ROOT_TOKEN") or "").strip()
         if not argocd_password:
-            self._json_response(400, {"error": "SF_ARGOCD_PASSWORD is required"})
+            self._json_response(400, {"error": "KB_ARGOCD_PASSWORD is required"})
             return
         if not vault_token:
-            self._json_response(400, {"error": "SF_VAULT_TOKEN is required"})
+            self._json_response(400, {"error": "KB_VAULT_TOKEN is required"})
             return
 
         # Save credentials and configuration to env_extra and run step 04
         env_extra = {}
         valid_keys = [
-            "SF_MODE", "SF_GIT_PROVIDER", "SF_GIT_USER", "SF_GIT_EMAIL", "SF_GIT_TOKEN", "SF_GIT_WORKSPACE",
-            "SF_DOCKER_USER", "SF_DOCKER_USERNAME", "SF_DOCKER_TOKEN",
-            "SF_DOMAIN", "SF_TAILSCALE_ENABLED", "SF_TAILSCALE_CLIENT_ID", "SF_TAILSCALE_CLIENT_SECRET",
-            "SF_TAILSCALE_DNS_SUFFIX", "SF_TAILSCALE_ACL_TOKEN", "SF_CLOUDFLARE_TUNNEL_TOKEN",
-            "SF_CLOUDFLARE_TOKEN", "SF_CLOUDFLARE_ACCOUNT_ID",
-            "SF_AWS_ACCESS_KEY", "SF_AWS_SECRET_KEY", "SF_AWS_REGION",
-            "SF_ADMIN_USER", "SF_ADMIN_PASSWORD", "SF_ADMIN_PASS", "SF_ARGOCD_PASSWORD",
-            "SF_VAULT_TOKEN", "SF_VAULT_ROOT_TOKEN"
+            "KB_MODE", "KB_GIT_PROVIDER", "KB_GIT_USER", "KB_GIT_EMAIL", "KB_GIT_TOKEN", "KB_GIT_WORKSPACE",
+            "KB_DOCKER_USER", "KB_DOCKER_USERNAME", "KB_DOCKER_TOKEN",
+            "KB_DOMAIN", "KB_TAILSCALE_ENABLED", "KB_TAILSCALE_CLIENT_ID", "KB_TAILSCALE_CLIENT_SECRET",
+            "KB_TAILSCALE_DNS_SUFFIX", "KB_TAILSCALE_ACL_TOKEN", "KB_CLOUDFLARE_TUNNEL_TOKEN",
+            "KB_CLOUDFLARE_TOKEN", "KB_CLOUDFLARE_ACCOUNT_ID",
+            "KB_AWS_ACCESS_KEY", "KB_AWS_SECRET_KEY", "KB_AWS_REGION",
+            "KB_ADMIN_USER", "KB_ADMIN_PASSWORD", "KB_ADMIN_PASS", "KB_ARGOCD_PASSWORD",
+            "KB_VAULT_TOKEN", "KB_VAULT_ROOT_TOKEN"
         ]
         for key in valid_keys:
             if key in body:
@@ -414,60 +414,60 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
             return
 
         parsed = {}
-        # Map common key variants to our SF_ keys
+        # Map common key variants to our KB_ keys
         key_map = {
-            # Direct SF_ keys
-            "SF_DOMAIN": "SF_DOMAIN",
-            "SF_GIT_PROVIDER": "SF_GIT_PROVIDER",
-            "SF_GIT_USER": "SF_GIT_USER",
-            "SF_GIT_USERNAME": "SF_GIT_USER",
-            "SF_GIT_EMAIL": "SF_GIT_EMAIL",
-            "SF_GIT_TOKEN": "SF_GIT_TOKEN",
-            "SF_GIT_WORKSPACE": "SF_GIT_WORKSPACE",
-            "SF_BITBUCKET_WORKSPACE": "SF_GIT_WORKSPACE",
-            "SF_DOCKER_USER": "SF_DOCKER_USER",
-            "SF_DOCKER_USERNAME": "SF_DOCKER_USER",
-            "SF_DOCKER_TOKEN": "SF_DOCKER_TOKEN",
-            "SF_TAILSCALE_ENABLED": "SF_TAILSCALE_ENABLED",
-            "SF_TAILSCALE_CLIENT_ID": "SF_TAILSCALE_CLIENT_ID",
-            "SF_TAILSCALE_CLIENT_SECRET": "SF_TAILSCALE_CLIENT_SECRET",
-            "SF_TAILSCALE_DNS_SUFFIX": "SF_TAILSCALE_DNS_SUFFIX",
-            "SF_TAILSCALE_ACL_TOKEN": "SF_TAILSCALE_ACL_TOKEN",
-            "SF_CLOUDFLARE_TUNNEL_TOKEN": "SF_CLOUDFLARE_TUNNEL_TOKEN",
-            "SF_AWS_ACCESS_KEY": "SF_AWS_ACCESS_KEY",
-            "SF_AWS_SECRET_KEY": "SF_AWS_SECRET_KEY",
-            "SF_AWS_REGION": "SF_AWS_REGION",
-            "SF_ADMIN_USER": "SF_ADMIN_USER",
-            "SF_ADMIN_PASSWORD": "SF_ADMIN_PASSWORD",
-            "SF_ARGOCD_PASSWORD": "SF_ARGOCD_PASSWORD",
-            "SF_VAULT_TOKEN": "SF_VAULT_TOKEN",
-            "SF_VAULT_ROOT_TOKEN": "SF_VAULT_TOKEN",
+            # Direct KB_ keys
+            "KB_DOMAIN": "KB_DOMAIN",
+            "KB_GIT_PROVIDER": "KB_GIT_PROVIDER",
+            "KB_GIT_USER": "KB_GIT_USER",
+            "KB_GIT_USERNAME": "KB_GIT_USER",
+            "KB_GIT_EMAIL": "KB_GIT_EMAIL",
+            "KB_GIT_TOKEN": "KB_GIT_TOKEN",
+            "KB_GIT_WORKSPACE": "KB_GIT_WORKSPACE",
+            "KB_BITBUCKET_WORKSPACE": "KB_GIT_WORKSPACE",
+            "KB_DOCKER_USER": "KB_DOCKER_USER",
+            "KB_DOCKER_USERNAME": "KB_DOCKER_USER",
+            "KB_DOCKER_TOKEN": "KB_DOCKER_TOKEN",
+            "KB_TAILSCALE_ENABLED": "KB_TAILSCALE_ENABLED",
+            "KB_TAILSCALE_CLIENT_ID": "KB_TAILSCALE_CLIENT_ID",
+            "KB_TAILSCALE_CLIENT_SECRET": "KB_TAILSCALE_CLIENT_SECRET",
+            "KB_TAILSCALE_DNS_SUFFIX": "KB_TAILSCALE_DNS_SUFFIX",
+            "KB_TAILSCALE_ACL_TOKEN": "KB_TAILSCALE_ACL_TOKEN",
+            "KB_CLOUDFLARE_TUNNEL_TOKEN": "KB_CLOUDFLARE_TUNNEL_TOKEN",
+            "KB_AWS_ACCESS_KEY": "KB_AWS_ACCESS_KEY",
+            "KB_AWS_SECRET_KEY": "KB_AWS_SECRET_KEY",
+            "KB_AWS_REGION": "KB_AWS_REGION",
+            "KB_ADMIN_USER": "KB_ADMIN_USER",
+            "KB_ADMIN_PASSWORD": "KB_ADMIN_PASSWORD",
+            "KB_ARGOCD_PASSWORD": "KB_ARGOCD_PASSWORD",
+            "KB_VAULT_TOKEN": "KB_VAULT_TOKEN",
+            "KB_VAULT_ROOT_TOKEN": "KB_VAULT_TOKEN",
             # Terraform-style keys (from terraform.tfvars format)
-            "git_username": "SF_GIT_USER",
-            "git_token": "SF_GIT_TOKEN",
-            "bitbucket_email": "SF_GIT_EMAIL",
-            "bitbucket_workspace": "SF_GIT_WORKSPACE",
-            "docker_username": "SF_DOCKER_USER",
-            "docker_token": "SF_DOCKER_TOKEN",
-            "domain_name": "SF_DOMAIN",
-            "aws_access_key": "SF_AWS_ACCESS_KEY",
-            "aws_secret_key": "SF_AWS_SECRET_KEY",
-            "aws_region": "SF_AWS_REGION",
-            "tailscale_client_id": "SF_TAILSCALE_CLIENT_ID",
-            "tailscale_client_secret": "SF_TAILSCALE_CLIENT_SECRET",
-            "tailscale_dns_suffix": "SF_TAILSCALE_DNS_SUFFIX",
-            "tailscale_acl_token": "SF_TAILSCALE_ACL_TOKEN",
-            "argocd_admin_password": "SF_ARGOCD_PASSWORD",
-            "vault_init_token": "SF_VAULT_TOKEN",
-            "vault_token": "SF_VAULT_TOKEN",
-            "nexus_admin_user": "SF_ADMIN_USER",
-            "nexus_admin_password": "SF_ADMIN_PASSWORD",
+            "git_username": "KB_GIT_USER",
+            "git_token": "KB_GIT_TOKEN",
+            "bitbucket_email": "KB_GIT_EMAIL",
+            "bitbucket_workspace": "KB_GIT_WORKSPACE",
+            "docker_username": "KB_DOCKER_USER",
+            "docker_token": "KB_DOCKER_TOKEN",
+            "domain_name": "KB_DOMAIN",
+            "aws_access_key": "KB_AWS_ACCESS_KEY",
+            "aws_secret_key": "KB_AWS_SECRET_KEY",
+            "aws_region": "KB_AWS_REGION",
+            "tailscale_client_id": "KB_TAILSCALE_CLIENT_ID",
+            "tailscale_client_secret": "KB_TAILSCALE_CLIENT_SECRET",
+            "tailscale_dns_suffix": "KB_TAILSCALE_DNS_SUFFIX",
+            "tailscale_acl_token": "KB_TAILSCALE_ACL_TOKEN",
+            "argocd_admin_password": "KB_ARGOCD_PASSWORD",
+            "vault_init_token": "KB_VAULT_TOKEN",
+            "vault_token": "KB_VAULT_TOKEN",
+            "kaanbal_admin_user": "KB_ADMIN_USER",
+            "kaanbal_admin_password": "KB_ADMIN_PASSWORD",
             # Contabo-style keys
-            "CONTABO_DOCKER_USERNAME": "SF_DOCKER_USER",
-            "CONTABO_DOCKER_TOKEN": "SF_DOCKER_TOKEN",
-            "CONTABO_BITBUCKET_WORKSPACE": "SF_GIT_WORKSPACE",
-            "CONTABO_BITBUCKET_EMAIL": "SF_GIT_EMAIL",
-            "CONTABO_DOMAIN": "SF_DOMAIN",
+            "CONTABO_DOCKER_USERNAME": "KB_DOCKER_USER",
+            "CONTABO_DOCKER_TOKEN": "KB_DOCKER_TOKEN",
+            "CONTABO_BITBUCKET_WORKSPACE": "KB_GIT_WORKSPACE",
+            "CONTABO_BITBUCKET_EMAIL": "KB_GIT_EMAIL",
+            "CONTABO_DOMAIN": "KB_DOMAIN",
         }
 
         for line in content.splitlines():
@@ -479,17 +479,17 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
             if m:
                 raw_key = m.group(1).strip()
                 raw_val = m.group(2).strip()
-                sf_key = key_map.get(raw_key)
-                if sf_key and raw_val:
-                    parsed[sf_key] = raw_val
+                KB_key = key_map.get(raw_key)
+                if KB_key and raw_val:
+                    parsed[KB_key] = raw_val
 
         # Auto-detect: if we got Tailscale creds, enable it
-        if parsed.get("SF_TAILSCALE_CLIENT_ID") and parsed.get("SF_TAILSCALE_CLIENT_SECRET"):
-            parsed["SF_TAILSCALE_ENABLED"] = "true"
+        if parsed.get("KB_TAILSCALE_CLIENT_ID") and parsed.get("KB_TAILSCALE_CLIENT_SECRET"):
+            parsed["KB_TAILSCALE_ENABLED"] = "true"
 
         # Auto-detect git provider from workspace
-        if parsed.get("SF_GIT_WORKSPACE") and "SF_GIT_PROVIDER" not in parsed:
-            parsed["SF_GIT_PROVIDER"] = "bitbucket"
+        if parsed.get("KB_GIT_WORKSPACE") and "KB_GIT_PROVIDER" not in parsed:
+            parsed["KB_GIT_PROVIDER"] = "bitbucket"
 
         self._json_response(200, {"ok": True, "config": parsed, "keys_found": len(parsed)})
 
@@ -535,8 +535,8 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                 env["INSTALLER_DIR"] = str(INSTALLER_DIR)
                 env["TERM"] = "dumb"
                 env["DEBIAN_FRONTEND"] = "noninteractive"
-                env["SF_CLEAN_DELETE_REMOTE_REPOS"] = "true" if delete_remote_repos else "false"
-                env["SF_CLEAN_DELETE_CLOUDFLARE_TUNNEL"] = "true" if delete_cloudflare_tunnel else "false"
+                env["KB_CLEAN_DELETE_REMOTE_REPOS"] = "true" if delete_remote_repos else "false"
+                env["KB_CLEAN_DELETE_CLOUDFLARE_TUNNEL"] = "true" if delete_cloudflare_tunnel else "false"
                 proc = subprocess.Popen(
                     ["bash", str(script)],
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -625,7 +625,7 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
         content = config_file.read_text()
         for key, value in updates.items():
             # Only allow known config keys
-            if not key.startswith("SF_"):
+            if not key.startswith("KB_"):
                 continue
             # Replace existing line or append
             import re as re_mod
@@ -647,45 +647,45 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
         warnings = []
 
         # --- Required field checks ---
-        docker_user = (body.get("SF_DOCKER_USER") or "").strip()
-        docker_token = (body.get("SF_DOCKER_TOKEN") or "").strip()
-        git_user = (body.get("SF_GIT_USER") or "").strip()
-        git_email = (body.get("SF_GIT_EMAIL") or "").strip()
-        git_token = (body.get("SF_GIT_TOKEN") or "").strip()
-        git_provider = (body.get("SF_GIT_PROVIDER") or "").strip()
-        git_workspace = (body.get("SF_GIT_WORKSPACE") or "").strip()
-        domain = (body.get("SF_DOMAIN") or "").strip()
-        ts_enabled = (body.get("SF_TAILSCALE_ENABLED") or "").strip().lower() in ("true", "1", "yes")
-        ts_client_id = (body.get("SF_TAILSCALE_CLIENT_ID") or "").strip()
-        ts_client_secret = (body.get("SF_TAILSCALE_CLIENT_SECRET") or "").strip()
-        ts_acl_token = (body.get("SF_TAILSCALE_ACL_TOKEN") or "").strip()
-        admin_password = (body.get("SF_ADMIN_PASSWORD") or body.get("SF_ADMIN_PASS") or "").strip()
-        argocd_password = (body.get("SF_ARGOCD_PASSWORD") or "").strip()
-        vault_token = (body.get("SF_VAULT_TOKEN") or body.get("SF_VAULT_ROOT_TOKEN") or "").strip()
+        docker_user = (body.get("KB_DOCKER_USER") or "").strip()
+        docker_token = (body.get("KB_DOCKER_TOKEN") or "").strip()
+        git_user = (body.get("KB_GIT_USER") or "").strip()
+        git_email = (body.get("KB_GIT_EMAIL") or "").strip()
+        git_token = (body.get("KB_GIT_TOKEN") or "").strip()
+        git_provider = (body.get("KB_GIT_PROVIDER") or "").strip()
+        git_workspace = (body.get("KB_GIT_WORKSPACE") or "").strip()
+        domain = (body.get("KB_DOMAIN") or "").strip()
+        ts_enabled = (body.get("KB_TAILSCALE_ENABLED") or "").strip().lower() in ("true", "1", "yes")
+        ts_client_id = (body.get("KB_TAILSCALE_CLIENT_ID") or "").strip()
+        ts_client_secret = (body.get("KB_TAILSCALE_CLIENT_SECRET") or "").strip()
+        ts_acl_token = (body.get("KB_TAILSCALE_ACL_TOKEN") or "").strip()
+        admin_password = (body.get("KB_ADMIN_PASSWORD") or body.get("KB_ADMIN_PASS") or "").strip()
+        argocd_password = (body.get("KB_ARGOCD_PASSWORD") or "").strip()
+        vault_token = (body.get("KB_VAULT_TOKEN") or body.get("KB_VAULT_ROOT_TOKEN") or "").strip()
 
         # Core control plane secrets are required so post-install does not end in partial configuration.
         if not admin_password:
-            errors.append({"field": "SF_ADMIN_PASSWORD", "msg": "Admin password is required"})
+            errors.append({"field": "KB_ADMIN_PASSWORD", "msg": "Admin password is required"})
         if not argocd_password:
-            errors.append({"field": "SF_ARGOCD_PASSWORD", "msg": "ArgoCD admin password is required"})
+            errors.append({"field": "KB_ARGOCD_PASSWORD", "msg": "ArgoCD admin password is required"})
         if not vault_token:
-            errors.append({"field": "SF_VAULT_TOKEN", "msg": "Vault token is required"})
+            errors.append({"field": "KB_VAULT_TOKEN", "msg": "Vault token is required"})
 
         if not domain:
-            errors.append({"field": "SF_DOMAIN", "msg": "Domain is required"})
+            errors.append({"field": "KB_DOMAIN", "msg": "Domain is required"})
 
         # --- Tailscale is mandatory ---
         if not ts_enabled:
-            errors.append({"field": "SF_TAILSCALE_ENABLED", "msg": "Tailscale VPN is required — it provides secure cluster networking and hybrid cloud connectivity"})
+            errors.append({"field": "KB_TAILSCALE_ENABLED", "msg": "Tailscale VPN is required — it provides secure cluster networking and hybrid cloud connectivity"})
         if ts_enabled and not ts_client_id:
-            errors.append({"field": "SF_TAILSCALE_CLIENT_ID", "msg": "Tailscale OAuth Client ID is required"})
+            errors.append({"field": "KB_TAILSCALE_CLIENT_ID", "msg": "Tailscale OAuth Client ID is required"})
         if ts_enabled and not ts_client_secret:
-            errors.append({"field": "SF_TAILSCALE_CLIENT_SECRET", "msg": "Tailscale OAuth Client Secret is required"})
+            errors.append({"field": "KB_TAILSCALE_CLIENT_SECRET", "msg": "Tailscale OAuth Client Secret is required"})
         if ts_enabled and not ts_acl_token:
-            errors.append({"field": "SF_TAILSCALE_ACL_TOKEN", "msg": "Tailscale ACL Admin Token is required for automatic tag policy fixes (tagOwners)"})
+            errors.append({"field": "KB_TAILSCALE_ACL_TOKEN", "msg": "Tailscale ACL Admin Token is required for automatic tag policy fixes (tagOwners)"})
 
         if ts_acl_token and not (ts_acl_token.startswith("tskey-api-") or ts_acl_token.startswith("tskey-auth-")):
-            warnings.append({"field": "SF_TAILSCALE_ACL_TOKEN", "msg": "Tailscale ACL token format looks unusual (expected tskey-api-* or tskey-auth-*)"})
+            warnings.append({"field": "KB_TAILSCALE_ACL_TOKEN", "msg": "Tailscale ACL token format looks unusual (expected tskey-api-* or tskey-auth-*)"})
 
         # Validate Tailscale OAuth if provided
         if ts_client_id and ts_client_secret:
@@ -695,19 +695,19 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                 ts_body = f"client_id={ts_client_id}&client_secret={ts_client_secret}&grant_type=client_credentials".encode()
                 req = urllib.request.Request("https://api.tailscale.com/api/v2/oauth/token", data=ts_body, method="POST")
                 req.add_header("Content-Type", "application/x-www-form-urlencoded")
-                req.add_header("User-Agent", "SF-Installer/1.0")
+                req.add_header("User-Agent", "KB-Installer/1.0")
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     pass  # 200 = OAuth OK
             except urllib.error.HTTPError as e:
-                errors.append({"field": "SF_TAILSCALE_CLIENT_ID", "msg": f"Tailscale OAuth failed (HTTP {e.code}) — verify your Client ID and Secret"})
+                errors.append({"field": "KB_TAILSCALE_CLIENT_ID", "msg": f"Tailscale OAuth failed (HTTP {e.code}) — verify your Client ID and Secret"})
             except Exception:
-                warnings.append({"field": "SF_TAILSCALE_CLIENT_ID", "msg": "Could not reach Tailscale API to verify credentials"})
+                warnings.append({"field": "KB_TAILSCALE_CLIENT_ID", "msg": "Could not reach Tailscale API to verify credentials"})
 
         # --- Docker Hub validation ---
         if not docker_user:
-            errors.append({"field": "SF_DOCKER_USER", "msg": "Docker Hub username is required"})
+            errors.append({"field": "KB_DOCKER_USER", "msg": "Docker Hub username is required"})
         if not docker_token:
-            errors.append({"field": "SF_DOCKER_TOKEN", "msg": "Docker Hub token is required"})
+            errors.append({"field": "KB_DOCKER_TOKEN", "msg": "Docker Hub token is required"})
 
         if docker_user and docker_token:
             # Check if Docker Hub user exists and repos are available
@@ -716,33 +716,33 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
             import urllib.request
             import urllib.error
 
-            for repo_name in ["nexus-api", "nexus-console"]:
+            for repo_name in ["kaanbal-api", "kaanbal-console"]:
                 url = f"https://hub.docker.com/v2/repositories/{docker_user}/{repo_name}/tags/?page_size=1"
                 try:
                     req = urllib.request.Request(url, method="GET")
-                    req.add_header("User-Agent", "SF-Installer/1.0")
+                    req.add_header("User-Agent", "KB-Installer/1.0")
                     with urllib.request.urlopen(req, timeout=10) as resp:
                         data = json.loads(resp.read())
                         count = data.get("count", 0)
                         if count == 0:
                             warnings.append({
-                                "field": "SF_DOCKER_USER",
+                                "field": "KB_DOCKER_USER",
                                 "msg": f"Repository '{docker_user}/{repo_name}' exists but has no tags — first pipeline build will create them"
                             })
                 except urllib.error.HTTPError as e:
                     if e.code == 404:
                         warnings.append({
-                            "field": "SF_DOCKER_USER",
+                            "field": "KB_DOCKER_USER",
                             "msg": f"Repository '{docker_user}/{repo_name}' not found on Docker Hub — it will be created by the first pipeline build"
                         })
                     else:
                         warnings.append({
-                            "field": "SF_DOCKER_USER",
+                            "field": "KB_DOCKER_USER",
                             "msg": f"Could not verify '{docker_user}/{repo_name}' (HTTP {e.code})"
                         })
                 except Exception as e:
                     warnings.append({
-                        "field": "SF_DOCKER_USER",
+                        "field": "KB_DOCKER_USER",
                         "msg": f"Could not reach Docker Hub to verify '{repo_name}': {str(e)[:80]}"
                     })
 
@@ -752,37 +752,37 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                 login_body = json.dumps({"username": docker_user, "password": docker_token}).encode()
                 req = urllib.request.Request(login_url, data=login_body, method="POST")
                 req.add_header("Content-Type", "application/json")
-                req.add_header("User-Agent", "SF-Installer/1.0")
+                req.add_header("User-Agent", "KB-Installer/1.0")
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     pass  # 200 = auth OK
             except urllib.error.HTTPError as e:
                 if e.code == 401:
                     errors.append({
-                        "field": "SF_DOCKER_TOKEN",
+                        "field": "KB_DOCKER_TOKEN",
                         "msg": "Docker Hub authentication failed — check your username and token"
                     })
                 else:
                     warnings.append({
-                        "field": "SF_DOCKER_TOKEN",
+                        "field": "KB_DOCKER_TOKEN",
                         "msg": f"Could not verify Docker Hub login (HTTP {e.code})"
                     })
             except Exception:
                 warnings.append({
-                    "field": "SF_DOCKER_TOKEN",
+                    "field": "KB_DOCKER_TOKEN",
                     "msg": "Could not reach Docker Hub to verify credentials"
                 })
 
         # --- Git provider validation ---
         if not git_user:
-            errors.append({"field": "SF_GIT_USER", "msg": "Git username is required"})
+            errors.append({"field": "KB_GIT_USER", "msg": "Git username is required"})
         if not git_token:
-            errors.append({"field": "SF_GIT_TOKEN", "msg": "Git access token is required"})
+            errors.append({"field": "KB_GIT_TOKEN", "msg": "Git access token is required"})
 
         if git_provider == "bitbucket":
             if not git_workspace:
-                errors.append({"field": "SF_GIT_WORKSPACE", "msg": "Bitbucket workspace is required"})
+                errors.append({"field": "KB_GIT_WORKSPACE", "msg": "Bitbucket workspace is required"})
             if not git_email:
-                errors.append({"field": "SF_GIT_EMAIL", "msg": "Bitbucket email is required (API uses email:app_password for auth)"})
+                errors.append({"field": "KB_GIT_EMAIL", "msg": "Bitbucket email is required (API uses email:app_password for auth)"})
 
             if git_token and git_workspace and git_email:
                 # Test Bitbucket API access using email:app_password (Bitbucket requirement)
@@ -799,7 +799,7 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                     auth_str = base64.b64encode(f"{git_email}:{git_token}".encode()).decode()
                     req = urllib.request.Request(bb_url, method="GET")
                     req.add_header("Authorization", f"Basic {auth_str}")
-                    req.add_header("User-Agent", "SF-Installer/1.0")
+                    req.add_header("User-Agent", "KB-Installer/1.0")
                     with urllib.request.urlopen(req, timeout=10) as resp:
                         bb_auth_ok = True
                         bb_workspace_ok = True
@@ -813,17 +813,17 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                 if not bb_auth_ok:
                     if bb_last_error in (401, 403):
                         errors.append({
-                            "field": "SF_GIT_TOKEN",
+                            "field": "KB_GIT_TOKEN",
                             "msg": f"Bitbucket authentication failed — verify your email ('{git_email}') and app password are correct"
                         })
                     else:
                         warnings.append({
-                            "field": "SF_GIT_TOKEN",
+                            "field": "KB_GIT_TOKEN",
                             "msg": f"Could not verify Bitbucket access (HTTP {bb_last_error})"
                         })
                 elif not bb_workspace_ok:
                     warnings.append({
-                        "field": "SF_GIT_WORKSPACE",
+                        "field": "KB_GIT_WORKSPACE",
                         "msg": f"Bitbucket workspace '{git_workspace}' not found — it will be created during installation"
                     })
 
@@ -834,20 +834,20 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                 gh_url = "https://api.github.com/user"
                 req = urllib.request.Request(gh_url, method="GET")
                 req.add_header("Authorization", f"Bearer {git_token}")
-                req.add_header("User-Agent", "SF-Installer/1.0")
+                req.add_header("User-Agent", "KB-Installer/1.0")
                 with urllib.request.urlopen(req, timeout=10) as resp:
                     pass
             except urllib.error.HTTPError as e:
                 if e.code == 401:
                     errors.append({
-                        "field": "SF_GIT_TOKEN",
+                        "field": "KB_GIT_TOKEN",
                         "msg": "GitHub authentication failed — check your token"
                     })
             except Exception:
-                warnings.append({"field": "SF_GIT_TOKEN", "msg": "Could not reach GitHub API"})
+                warnings.append({"field": "KB_GIT_TOKEN", "msg": "Could not reach GitHub API"})
 
-        cf_token = (body.get("SF_CLOUDFLARE_TOKEN") or body.get("SF_CLOUDFLARE_TUNNEL_TOKEN") or "").strip()
-        cf_account_id = (body.get("SF_CLOUDFLARE_ACCOUNT_ID") or "").strip()
+        cf_token = (body.get("KB_CLOUDFLARE_TOKEN") or body.get("KB_CLOUDFLARE_TUNNEL_TOKEN") or "").strip()
+        cf_account_id = (body.get("KB_CLOUDFLARE_ACCOUNT_ID") or "").strip()
 
         # --- Cloudflare validation (required if token provided) ---
         if cf_token:
@@ -861,7 +861,7 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                     req = urllib.request.Request(cf_url, method="GET")
                     req.add_header("Authorization", f"Bearer {cf_token}")
                     req.add_header("Content-Type", "application/json")
-                    req.add_header("User-Agent", "SF-Installer/1.0")
+                    req.add_header("User-Agent", "KB-Installer/1.0")
                     with urllib.request.urlopen(req, timeout=10) as resp:
                         data = json.loads(resp.read())
                         if data.get("success"):
@@ -874,21 +874,21 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                             req2 = urllib.request.Request(zone_url, method="GET")
                             req2.add_header("Authorization", f"Bearer {cf_token}")
                             req2.add_header("Content-Type", "application/json")
-                            req2.add_header("User-Agent", "SF-Installer/1.0")
+                            req2.add_header("User-Agent", "KB-Installer/1.0")
                             with urllib.request.urlopen(req2, timeout=10) as resp2:
                                 data2 = json.loads(resp2.read())
                                 if data2.get("success"):
                                     cf_valid = True
-                                    warnings.append({"field": "SF_CLOUDFLARE_TOKEN",
+                                    warnings.append({"field": "KB_CLOUDFLARE_TOKEN",
                                                      "msg": "Account-level verify blocked by scope (OK for scoped tokens)"})
                         except Exception:
-                            errors.append({"field": "SF_CLOUDFLARE_TOKEN",
+                            errors.append({"field": "KB_CLOUDFLARE_TOKEN",
                                            "msg": "Cloudflare authentication failed — check your API token and Account ID"})
                     else:
-                        errors.append({"field": "SF_CLOUDFLARE_TOKEN",
+                        errors.append({"field": "KB_CLOUDFLARE_TOKEN",
                                        "msg": f"Cloudflare API error (HTTP {e.code}) — check token permissions"})
                 except Exception:
-                    warnings.append({"field": "SF_CLOUDFLARE_TOKEN",
+                    warnings.append({"field": "KB_CLOUDFLARE_TOKEN",
                                      "msg": "Could not reach Cloudflare API to validate token"})
 
                 # 2) Check tunnel permission (required for auto-tunnel creation)
@@ -898,27 +898,27 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                         req_t = urllib.request.Request(tun_url, method="GET")
                         req_t.add_header("Authorization", f"Bearer {cf_token}")
                         req_t.add_header("Content-Type", "application/json")
-                        req_t.add_header("User-Agent", "SF-Installer/1.0")
+                        req_t.add_header("User-Agent", "KB-Installer/1.0")
                         with urllib.request.urlopen(req_t, timeout=10) as resp_t:
                             data_t = json.loads(resp_t.read())
                             if data_t.get("success"):
                                 tunnel_count = len(data_t.get("result", []))
                                 if tunnel_count > 0:
-                                    warnings.append({"field": "SF_CLOUDFLARE_TOKEN",
+                                    warnings.append({"field": "KB_CLOUDFLARE_TOKEN",
                                                      "msg": f"Tunnel access OK — found {tunnel_count} existing tunnel(s). Stale ones will be cleaned up during install."})
                             else:
-                                warnings.append({"field": "SF_CLOUDFLARE_TOKEN",
+                                warnings.append({"field": "KB_CLOUDFLARE_TOKEN",
                                                  "msg": "Tunnel API accessible but returned no success flag"})
                     except urllib.error.HTTPError as e:
                         if e.code in (403, 401):
-                            errors.append({"field": "SF_CLOUDFLARE_TOKEN",
+                            errors.append({"field": "KB_CLOUDFLARE_TOKEN",
                                            "msg": "Token lacks Cloudflare Tunnel permission — add 'Account > Cloudflare Tunnel: Edit' to your API token"})
                             cf_valid = False
                         else:
-                            warnings.append({"field": "SF_CLOUDFLARE_TOKEN",
+                            warnings.append({"field": "KB_CLOUDFLARE_TOKEN",
                                              "msg": f"Tunnel permission check returned HTTP {e.code}"})
                     except Exception:
-                        warnings.append({"field": "SF_CLOUDFLARE_TOKEN",
+                        warnings.append({"field": "KB_CLOUDFLARE_TOKEN",
                                          "msg": "Could not verify tunnel permissions (non-blocking)"})
 
                 # 3) Check DNS permission (required for DNS record creation)
@@ -928,22 +928,22 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                         req_d = urllib.request.Request(dns_url, method="GET")
                         req_d.add_header("Authorization", f"Bearer {cf_token}")
                         req_d.add_header("Content-Type", "application/json")
-                        req_d.add_header("User-Agent", "SF-Installer/1.0")
+                        req_d.add_header("User-Agent", "KB-Installer/1.0")
                         with urllib.request.urlopen(req_d, timeout=10) as resp_d:
                             data_d = json.loads(resp_d.read())
                             if data_d.get("success"):
                                 zone_names = [z.get("name", "?") for z in data_d.get("result", [])]
                                 if zone_names:
-                                    warnings.append({"field": "SF_CLOUDFLARE_TOKEN",
+                                    warnings.append({"field": "KB_CLOUDFLARE_TOKEN",
                                                      "msg": f"DNS access OK — zones: {', '.join(zone_names[:3])}"})
                     except urllib.error.HTTPError as e:
                         if e.code in (403, 401):
-                            warnings.append({"field": "SF_CLOUDFLARE_TOKEN",
+                            warnings.append({"field": "KB_CLOUDFLARE_TOKEN",
                                              "msg": "Token may lack DNS permissions — add 'Zone > DNS: Edit' to your API token"})
                     except Exception:
                         pass
             else:
-                errors.append({"field": "SF_CLOUDFLARE_ACCOUNT_ID",
+                errors.append({"field": "KB_CLOUDFLARE_ACCOUNT_ID",
                                "msg": "Cloudflare Account ID is required when providing a Cloudflare token"})
 
         result = {
@@ -1117,7 +1117,7 @@ def main():
     # Load token from env file if not set
     if not TOKEN and INSTALLER_ENV.exists():
         for line in INSTALLER_ENV.read_text().splitlines():
-            if line.startswith("SF_SETUP_TOKEN="):
+            if line.startswith("KB_SETUP_TOKEN="):
                 TOKEN = line.split("=", 1)[1].strip()
 
     if not TOKEN:

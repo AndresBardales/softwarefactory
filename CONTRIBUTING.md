@@ -1,6 +1,6 @@
-# Contributing to Software Factory
+# Contributing to Kaanbal Engine
 
-Thanks for your interest in improving Software Factory! This guide will help you get started.
+Thanks for your interest in improving Kaanbal Engine! This guide will help you get started.
 
 ## Quick Start for Contributors
 
@@ -47,7 +47,7 @@ chore: update K3s version to v1.30
 ## What You Can Contribute
 
 ### Templates (Easiest)
-Add new app/database templates to `installer/` or the template catalog. See [nexus-templates](https://github.com/AndresBardales/nexus-templates) for the schema.
+Add new app/database templates to `installer/` or the template catalog. See [kaanbal-templates](https://github.com/AndresBardales/kaanbal-templates) for the schema.
 
 ### Installer Improvements
 - New install step or mode
@@ -55,12 +55,12 @@ Add new app/database templates to `installer/` or the template catalog. See [nex
 - Support for more Linux distros
 - Localization (i18n)
 
-### Dashboard (nexus-console)
+### Dashboard (kaanbal-console)
 - UI/UX improvements
 - New views or widgets
 - Accessibility fixes
 
-### API (nexus-api)
+### API (kaanbal-api)
 - New endpoints
 - Performance improvements
 - Additional provider integrations
@@ -105,8 +105,8 @@ check_system_requirements
 ## Code Style
 
 - **Shell scripts**: Follow existing patterns. Use `set -euo pipefail`. Functions prefixed by purpose (`log_`, `check_`, `deploy_`).
-- **Python (nexus-api)**: Black formatter, type hints where practical.
-- **Vue/JS (nexus-console)**: Composition API, Tailwind CSS.
+- **Python (kaanbal-api)**: Black formatter, type hints where practical.
+- **Vue/JS (kaanbal-console)**: Composition API, Tailwind CSS.
 
 ## Reporting Issues
 

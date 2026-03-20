@@ -1,8 +1,10 @@
 <div align="center">
 
-# ⚡ Software Factory
+# ⚡ Kaanbal Engine
 
 **Your Personal PaaS — Deploy your own cloud platform in minutes.**
+
+*Created by Kaanbal BioTech*
 
 Run apps, databases, and automations on any Linux server.
 
@@ -14,9 +16,9 @@ Run apps, databases, and automations on any Linux server.
 
 ---
 
-## What is Software Factory?
+## What is Kaanbal Engine?
 
-Software Factory turns **any Ubuntu server** into a complete development platform with:
+Kaanbal Engine turns **any Ubuntu server** into a complete development platform with:
 
 - **Kubernetes (K3s)** — lightweight container orchestration
 - **Web Dashboard** — deploy apps from templates with a few clicks
@@ -54,7 +56,7 @@ Follow the 11 automated steps. When done, open `http://<your-ip>:30080/setup` to
 │     Create admin account, connect Git & Docker Hub              │
 │     → Platform is configured and ready                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  3. NEXUS CONSOLE     http://<IP>:30080                         │
+│  3. KAANBAL CONSOLE   http://<IP>:30080                         │
 │     Deploy apps from templates, manage databases & services     │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -84,8 +86,8 @@ The installer automatically checks and installs dependencies (`curl`, `git`, `op
 | Component | Description | Modes |
 |-----------|-------------|-------|
 | K3s | Lightweight Kubernetes | All |
-| nexus-api | Backend API (FastAPI) | All |
-| nexus-console | Web Dashboard (Vue 3) | All |
+| kaanbal-api | Backend API (FastAPI) | All |
+| kaanbal-console | Web Dashboard (Vue 3) | All |
 | MongoDB | Database | All |
 | ArgoCD | GitOps continuous delivery | Cloud, Hybrid |
 | cert-manager | TLS certificates (Let's Encrypt) | Cloud, Hybrid |
@@ -96,26 +98,26 @@ The installer automatically checks and installs dependencies (`curl`, `git`, `op
 
 Open the dashboard:
 - **Local**: `http://localhost:30080`
-- **Cloud/Hybrid**: `https://nexus-console.yourdomain.com`
+- **Cloud/Hybrid**: `https://kaanbal-console.yourdomain.com`
 
 The setup wizard walks you through creating your admin account and configuring credentials.
 
 ## CLI Tool
 
-After installation, use the `sf` command:
+After installation, use the `kb` command:
 
 ```bash
-sf status    # Cluster health and resource usage
-sf apps      # List deployed applications
-sf logs app  # Stream application logs
-sf config    # View configuration (secrets masked)
-sf upgrade   # Update to latest version
+kb status    # Cluster health and resource usage
+kb apps      # List deployed applications
+kb logs app  # Stream application logs
+kb config    # View configuration (secrets masked)
+kb upgrade   # Update to latest version
 ```
 
 ## Upgrade
 
 ```bash
-sf upgrade
+kb upgrade
 ```
 
 The CLI checks for new releases, downloads the update, verifies the checksum, and applies it. You can also upgrade manually:
@@ -139,7 +141,7 @@ softwarefactory/
 ├── CONTRIBUTING.md         # How to contribute
 ├── installer/
 │   ├── install.sh          # Main orchestrator + dashboard
-│   ├── sf                  # CLI management tool
+│   ├── kb                  # CLI management tool
 │   ├── server.py           # Dashboard backend (Python)
 │   ├── ui/index.html       # Dashboard frontend (Alpine.js)
 │   ├── config.example.env  # Configuration template

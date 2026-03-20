@@ -15,11 +15,11 @@ run_wizard() {
     "Cloud — deploy to AWS with public domain" \
     "Hybrid — local master + cloud gateway for public access"
   case $PROMPT_RESULT in
-    0) SF_MODE="local" ;;
-    1) SF_MODE="cloud" ;;
-    2) SF_MODE="hybrid" ;;
+    0) KB_MODE="local" ;;
+    1) KB_MODE="cloud" ;;
+    2) KB_MODE="hybrid" ;;
   esac
-  log_info "Mode: $SF_MODE"
+  log_info "Mode: $KB_MODE"
   echo ""
 
   # --------------------------------------------------
@@ -30,47 +30,47 @@ run_wizard() {
     "GitHub" \
     "GitLab"
   case $PROMPT_RESULT in
-    0) SF_GIT_PROVIDER="bitbucket" ;;
-    1) SF_GIT_PROVIDER="github" ;;
-    2) SF_GIT_PROVIDER="gitlab" ;;
+    0) KB_GIT_PROVIDER="bitbucket" ;;
+    1) KB_GIT_PROVIDER="github" ;;
+    2) KB_GIT_PROVIDER="gitlab" ;;
   esac
-  log_info "Git provider: $SF_GIT_PROVIDER"
+  log_info "Git provider: $KB_GIT_PROVIDER"
   echo ""
 
   # Git credentials
-  prompt_value "Git username" "" SF_GIT_USERNAME
-  prompt_value "Git email" "" SF_GIT_EMAIL
-  prompt_value "Git access token (with repo + pipeline permissions)" "" SF_GIT_TOKEN true
+  prompt_value "Git username" "" KB_GIT_USERNAME
+  prompt_value "Git email" "" KB_GIT_EMAIL
+  prompt_value "Git access token (with repo + pipeline permissions)" "" KB_GIT_TOKEN true
 
-  if [ "$SF_GIT_PROVIDER" = "bitbucket" ]; then
-    prompt_value "Bitbucket workspace slug" "" SF_BITBUCKET_WORKSPACE
-  elif [ "$SF_GIT_PROVIDER" = "github" ]; then
-    prompt_value "GitHub organization (or username)" "$SF_GIT_USERNAME" SF_GITHUB_ORG
+  if [ "$KB_GIT_PROVIDER" = "bitbucket" ]; then
+    prompt_value "Bitbucket workspace slug" "" KB_BITBUCKET_WORKSPACE
+  elif [ "$KB_GIT_PROVIDER" = "github" ]; then
+    prompt_value "GitHub organization (or username)" "$KB_GIT_USERNAME" KB_GITHUB_ORG
   fi
   echo ""
 
   # --------------------------------------------------
   # Step 3: Docker registry
   # --------------------------------------------------
-  prompt_value "Docker Hub username" "" SF_DOCKER_USERNAME
-  prompt_value "Docker Hub token" "" SF_DOCKER_TOKEN true
+  prompt_value "Docker Hub username" "" KB_DOCKER_USERNAME
+  prompt_value "Docker Hub token" "" KB_DOCKER_TOKEN true
   echo ""
 
   # --------------------------------------------------
   # Step 4: Domain & networking (cloud/hybrid only)
   # --------------------------------------------------
-  SF_DOMAIN="localhost"
-  SF_ELASTIC_IP=""
-  SF_ENABLE_TLS=false
-  SF_TUNNEL_PROVIDER=""
-  SF_CLOUDFLARE_TOKEN=""
-  SF_CLOUDFLARE_ACCOUNT_ID=""
+  KB_DOMAIN="localhost"
+  KB_ELASTIC_IP=""
+  KB_ENABLE_TLS=false
+  KB_TUNNEL_PROVIDER=""
+  KB_CLOUDFLARE_TOKEN=""
+  KB_CLOUDFLARE_ACCOUNT_ID=""
 
-  if [ "$SF_MODE" = "cloud" ] || [ "$SF_MODE" = "hybrid" ]; then
-    prompt_value "Your domain name (e.g., yourdomain.com)" "" SF_DOMAIN
-    SF_ENABLE_TLS=true
+  if [ "$KB_MODE" = "cloud" ] || [ "$KB_MODE" = "hybrid" ]; then
+    prompt_value "Your domain name (e.g., yourdomain.com)" "" KB_DOMAIN
+    KB_ENABLE_TLS=true
 
-    if [ "$SF_MODE" = "hybrid" ]; then
+    if [ "$KB_MODE" = "hybrid" ]; then
       echo ""
       log_info "Hybrid mode needs a tunnel to expose local apps publicly."
       prompt_choice "Choose tunnel provider:" \
@@ -78,33 +78,33 @@ run_wizard() {
         "Tailscale Funnel (free, limited to HTTPS)" \
         "Skip for now (configure later via web wizard)"
       case $PROMPT_RESULT in
-        0) SF_TUNNEL_PROVIDER="cloudflare" ;;
-        1) SF_TUNNEL_PROVIDER="tailscale-funnel" ;;
-        2) SF_TUNNEL_PROVIDER="" ;;
+        0) KB_TUNNEL_PROVIDER="cloudflare" ;;
+        1) KB_TUNNEL_PROVIDER="tailscale-funnel" ;;
+        2) KB_TUNNEL_PROVIDER="" ;;
       esac
 
-      if [ "$SF_TUNNEL_PROVIDER" = "cloudflare" ]; then
+      if [ "$KB_TUNNEL_PROVIDER" = "cloudflare" ]; then
         echo ""
         log_info "Create a Cloudflare API token at: https://dash.cloudflare.com/profile/api-tokens"
         log_info "Required permissions: Zone:DNS:Edit + Account:Cloudflare Tunnel:Edit"
-        prompt_value "Cloudflare API Token" "" SF_CLOUDFLARE_TOKEN true
-        prompt_value "Cloudflare Account ID (from dashboard URL)" "" SF_CLOUDFLARE_ACCOUNT_ID
+        prompt_value "Cloudflare API Token" "" KB_CLOUDFLARE_TOKEN true
+        prompt_value "Cloudflare Account ID (from dashboard URL)" "" KB_CLOUDFLARE_ACCOUNT_ID
       fi
     fi
 
-    if [ "$SF_MODE" = "cloud" ]; then
-      prompt_value "AWS Elastic IP (leave blank to auto-create)" "" SF_ELASTIC_IP
+    if [ "$KB_MODE" = "cloud" ]; then
+      prompt_value "AWS Elastic IP (leave blank to auto-create)" "" KB_ELASTIC_IP
     fi
   fi
 
   # Local mode: offer nip.io for LAN access
-  if [ "$SF_MODE" = "local" ]; then
+  if [ "$KB_MODE" = "local" ]; then
     echo ""
     if prompt_yn "Enable LAN access (access from other devices on your network)?"; then
       local lan_ip
       lan_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-      SF_DOMAIN="${lan_ip}.nip.io"
-      log_info "LAN domain: $SF_DOMAIN (auto-resolves to $lan_ip)"
+      KB_DOMAIN="${lan_ip}.nip.io"
+      log_info "LAN domain: $KB_DOMAIN (auto-resolves to $lan_ip)"
     fi
   fi
   echo ""
@@ -112,104 +112,104 @@ run_wizard() {
   # --------------------------------------------------
   # Step 5: Tailscale (optional for local, recommended for hybrid)
   # --------------------------------------------------
-  SF_TAILSCALE_ENABLED=false
-  SF_TAILSCALE_CLIENT_ID=""
-  SF_TAILSCALE_CLIENT_SECRET=""
-  SF_TAILSCALE_DNS_SUFFIX=""
+  KB_TAILSCALE_ENABLED=false
+  KB_TAILSCALE_CLIENT_ID=""
+  KB_TAILSCALE_CLIENT_SECRET=""
+  KB_TAILSCALE_DNS_SUFFIX=""
 
-  if [ "$SF_MODE" = "hybrid" ]; then
+  if [ "$KB_MODE" = "hybrid" ]; then
     log_info "Tailscale is required for hybrid mode (VPN mesh between local and cloud)"
-    SF_TAILSCALE_ENABLED=true
+    KB_TAILSCALE_ENABLED=true
   elif prompt_yn "Enable Tailscale (secure remote access to internal apps)?"; then
-    SF_TAILSCALE_ENABLED=true
+    KB_TAILSCALE_ENABLED=true
   fi
 
-  if [ "$SF_TAILSCALE_ENABLED" = true ]; then
-    prompt_value "Tailscale OAuth Client ID" "" SF_TAILSCALE_CLIENT_ID true
-    prompt_value "Tailscale OAuth Client Secret" "" SF_TAILSCALE_CLIENT_SECRET true
-    prompt_value "Tailscale MagicDNS suffix (e.g., taildd8884.ts.net)" "" SF_TAILSCALE_DNS_SUFFIX
+  if [ "$KB_TAILSCALE_ENABLED" = true ]; then
+    prompt_value "Tailscale OAuth Client ID" "" KB_TAILSCALE_CLIENT_ID true
+    prompt_value "Tailscale OAuth Client Secret" "" KB_TAILSCALE_CLIENT_SECRET true
+    prompt_value "Tailscale MagicDNS suffix (e.g., taildd8884.ts.net)" "" KB_TAILSCALE_DNS_SUFFIX
   fi
   echo ""
 
   # --------------------------------------------------
   # Step 6: AWS credentials (cloud/hybrid only)
   # --------------------------------------------------
-  SF_AWS_REGION=""
-  SF_AWS_ACCESS_KEY=""
-  SF_AWS_SECRET_KEY=""
+  KB_AWS_REGION=""
+  KB_AWS_ACCESS_KEY=""
+  KB_AWS_SECRET_KEY=""
 
-  if [ "$SF_MODE" = "cloud" ] || [ "$SF_MODE" = "hybrid" ]; then
+  if [ "$KB_MODE" = "cloud" ] || [ "$KB_MODE" = "hybrid" ]; then
     log_info "AWS credentials are needed for cloud infrastructure"
-    prompt_value "AWS region" "us-east-1" SF_AWS_REGION
-    prompt_value "AWS Access Key" "" SF_AWS_ACCESS_KEY true
-    prompt_value "AWS Secret Key" "" SF_AWS_SECRET_KEY true
+    prompt_value "AWS region" "us-east-1" KB_AWS_REGION
+    prompt_value "AWS Access Key" "" KB_AWS_ACCESS_KEY true
+    prompt_value "AWS Secret Key" "" KB_AWS_SECRET_KEY true
     echo ""
   fi
 
   # --------------------------------------------------
   # Step 7: Admin credentials
   # --------------------------------------------------
-  SF_ADMIN_USER="admin"
-  SF_ADMIN_PASSWORD="$(generate_password 12)"
-  prompt_value "Admin username" "admin" SF_ADMIN_USER
-  prompt_value "Admin password (auto-generated if blank)" "$SF_ADMIN_PASSWORD" SF_ADMIN_PASSWORD
+  KB_ADMIN_USER="admin"
+  KB_ADMIN_PASSWORD="$(generate_password 12)"
+  prompt_value "Admin username" "admin" KB_ADMIN_USER
+  prompt_value "Admin password (auto-generated if blank)" "$KB_ADMIN_PASSWORD" KB_ADMIN_PASSWORD
 
   # ArgoCD password
-  SF_ARGOCD_PASSWORD="$(generate_password 16)"
+  KB_ARGOCD_PASSWORD="$(generate_password 16)"
   echo ""
 
   # --------------------------------------------------
   # Save configuration
   # --------------------------------------------------
-  log_step "Saving configuration to $SF_CONFIG"
+  log_step "Saving configuration to $KB_CONFIG"
 
-  cat > "$SF_CONFIG" << CONF
-# Software Factory Configuration
+  cat > "$KB_CONFIG" << CONF
+# Kaanbal Engine Configuration
 # Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-# Version: ${SF_VERSION}
+# Version: ${KB_VERSION}
 
 # Mode: local | cloud | hybrid
-SF_MODE="${SF_MODE}"
+KB_MODE="${KB_MODE}"
 
 # Git provider: bitbucket | github | gitlab
-SF_GIT_PROVIDER="${SF_GIT_PROVIDER}"
-SF_GIT_USERNAME="${SF_GIT_USERNAME}"
-SF_GIT_EMAIL="${SF_GIT_EMAIL}"
-SF_GIT_TOKEN="${SF_GIT_TOKEN}"
-SF_BITBUCKET_WORKSPACE="${SF_BITBUCKET_WORKSPACE:-}"
-SF_GITHUB_ORG="${SF_GITHUB_ORG:-}"
+KB_GIT_PROVIDER="${KB_GIT_PROVIDER}"
+KB_GIT_USERNAME="${KB_GIT_USERNAME}"
+KB_GIT_EMAIL="${KB_GIT_EMAIL}"
+KB_GIT_TOKEN="${KB_GIT_TOKEN}"
+KB_BITBUCKET_WORKSPACE="${KB_BITBUCKET_WORKSPACE:-}"
+KB_GITHUB_ORG="${KB_GITHUB_ORG:-}"
 
 # Docker Hub
-SF_DOCKER_USERNAME="${SF_DOCKER_USERNAME}"
-SF_DOCKER_TOKEN="${SF_DOCKER_TOKEN}"
+KB_DOCKER_USERNAME="${KB_DOCKER_USERNAME}"
+KB_DOCKER_TOKEN="${KB_DOCKER_TOKEN}"
 
 # Domain & Networking
-SF_DOMAIN="${SF_DOMAIN}"
-SF_ELASTIC_IP="${SF_ELASTIC_IP}"
-SF_ENABLE_TLS="${SF_ENABLE_TLS}"
+KB_DOMAIN="${KB_DOMAIN}"
+KB_ELASTIC_IP="${KB_ELASTIC_IP}"
+KB_ENABLE_TLS="${KB_ENABLE_TLS}"
 
 # Tunnel
-SF_TUNNEL_PROVIDER="${SF_TUNNEL_PROVIDER:-}"
-SF_CLOUDFLARE_TOKEN="${SF_CLOUDFLARE_TOKEN:-}"
-SF_CLOUDFLARE_ACCOUNT_ID="${SF_CLOUDFLARE_ACCOUNT_ID:-}"
+KB_TUNNEL_PROVIDER="${KB_TUNNEL_PROVIDER:-}"
+KB_CLOUDFLARE_TOKEN="${KB_CLOUDFLARE_TOKEN:-}"
+KB_CLOUDFLARE_ACCOUNT_ID="${KB_CLOUDFLARE_ACCOUNT_ID:-}"
 
 # Tailscale
-SF_TAILSCALE_ENABLED="${SF_TAILSCALE_ENABLED}"
-SF_TAILSCALE_CLIENT_ID="${SF_TAILSCALE_CLIENT_ID}"
-SF_TAILSCALE_CLIENT_SECRET="${SF_TAILSCALE_CLIENT_SECRET}"
-SF_TAILSCALE_DNS_SUFFIX="${SF_TAILSCALE_DNS_SUFFIX}"
+KB_TAILSCALE_ENABLED="${KB_TAILSCALE_ENABLED}"
+KB_TAILSCALE_CLIENT_ID="${KB_TAILSCALE_CLIENT_ID}"
+KB_TAILSCALE_CLIENT_SECRET="${KB_TAILSCALE_CLIENT_SECRET}"
+KB_TAILSCALE_DNS_SUFFIX="${KB_TAILSCALE_DNS_SUFFIX}"
 
 # AWS (cloud/hybrid only)
-SF_AWS_REGION="${SF_AWS_REGION}"
-SF_AWS_ACCESS_KEY="${SF_AWS_ACCESS_KEY}"
-SF_AWS_SECRET_KEY="${SF_AWS_SECRET_KEY}"
+KB_AWS_REGION="${KB_AWS_REGION}"
+KB_AWS_ACCESS_KEY="${KB_AWS_ACCESS_KEY}"
+KB_AWS_SECRET_KEY="${KB_AWS_SECRET_KEY}"
 
 # Admin
-SF_ADMIN_USER="${SF_ADMIN_USER}"
-SF_ADMIN_PASSWORD="${SF_ADMIN_PASSWORD}"
-SF_ARGOCD_PASSWORD="${SF_ARGOCD_PASSWORD}"
+KB_ADMIN_USER="${KB_ADMIN_USER}"
+KB_ADMIN_PASSWORD="${KB_ADMIN_PASSWORD}"
+KB_ARGOCD_PASSWORD="${KB_ARGOCD_PASSWORD}"
 CONF
 
-  chmod 600 "$SF_CONFIG"
+  chmod 600 "$KB_CONFIG"
   log_info "Configuration saved (file permissions: 600)"
 }

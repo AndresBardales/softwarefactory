@@ -134,7 +134,7 @@ install_k3s() {
     log_info "K3s binary found but not running — attempting restart..."
 
     # WSL2: update config before restart (may have new cgroup workarounds)
-    if [ "$SF_IS_WSL" = true ] && [ -d /etc/rancher/k3s ]; then
+    if [ "$KB_IS_WSL" = true ] && [ -d /etc/rancher/k3s ]; then
       write_wsl2_k3s_config
     fi
 
@@ -142,7 +142,7 @@ install_k3s() {
 
     # Wait for K3s API to become available, then copy fresh kubeconfig
     local restart_timeout=90
-    [ "$SF_IS_WSL" = true ] && restart_timeout=180
+    [ "$KB_IS_WSL" = true ] && restart_timeout=180
     if ! wait_for "K3s API server" "sudo k3s kubectl get nodes" "$restart_timeout"; then
       log_warn "K3s failed to start — performing clean reinstall..."
       clean_k3s
@@ -162,16 +162,16 @@ install_k3s() {
 
   # TLS SANs — add domain and local IPs so kubectl works remotely
   local tls_sans="--tls-san 127.0.0.1 --tls-san localhost"
-  if [ "$SF_MODE" = "cloud" ] || [ "$SF_MODE" = "hybrid" ]; then
-    [ -n "$SF_DOMAIN" ] && tls_sans="$tls_sans --tls-san $SF_DOMAIN --tls-san *.$SF_DOMAIN"
-    [ -n "$SF_ELASTIC_IP" ] && tls_sans="$tls_sans --tls-san $SF_ELASTIC_IP"
+  if [ "$KB_MODE" = "cloud" ] || [ "$KB_MODE" = "hybrid" ]; then
+    [ -n "$KB_DOMAIN" ] && tls_sans="$tls_sans --tls-san $KB_DOMAIN --tls-san *.$KB_DOMAIN"
+    [ -n "$KB_ELASTIC_IP" ] && tls_sans="$tls_sans --tls-san $KB_ELASTIC_IP"
   fi
 
   # Disable default traefik (we use nginx-ingress)
   k3s_args="--disable traefik"
 
   # WSL2-specific configuration
-  if [ "$SF_IS_WSL" = true ]; then
+  if [ "$KB_IS_WSL" = true ]; then
     log_info "WSL2 detected — applying K3s workarounds"
     write_wsl2_k3s_config
 
@@ -185,22 +185,22 @@ install_k3s() {
   curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server $k3s_args $tls_sans" sh -
 
   # WSL2: disable autostart to prevent VM crash loop on boot
-  if [ "$SF_IS_WSL" = true ]; then
+  if [ "$KB_IS_WSL" = true ]; then
     sudo systemctl disable k3s 2>/dev/null || true
     log_info "K3s autostart disabled (WSL2) — start manually with: sudo systemctl start k3s"
   fi
 
   # Wait for K3s to be ready (WSL2 needs more time on first boot)
   local install_timeout=90
-  [ "$SF_IS_WSL" = true ] && install_timeout=180
+  [ "$KB_IS_WSL" = true ] && install_timeout=180
   wait_for "K3s API server" "sudo k3s kubectl get nodes" "$install_timeout"
 
   # Set up kubeconfig (AFTER K3s is ready so certs are valid)
   setup_kubeconfig
 
   # If mode allows remote access, update kubeconfig server URL
-  if [ "$SF_MODE" = "cloud" ] && [ -n "$SF_ELASTIC_IP" ]; then
-    sed -i "s|server: https://127.0.0.1:6443|server: https://${SF_ELASTIC_IP}:6443|" "$HOME/.kube/config"
+  if [ "$KB_MODE" = "cloud" ] && [ -n "$KB_ELASTIC_IP" ]; then
+    sed -i "s|server: https://127.0.0.1:6443|server: https://${KB_ELASTIC_IP}:6443|" "$HOME/.kube/config"
   fi
 
   # Alias kubectl

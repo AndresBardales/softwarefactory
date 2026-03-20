@@ -9,8 +9,8 @@ source "$INSTALLER_DIR/lib/05-deploy.sh"
 # Load config
 [ -f "$HOME/.software-factory/config.env" ] && source "$HOME/.software-factory/config.env"
 
-SF_MODE="${SF_MODE:-local}"
-export SF_MODE
+KB_MODE="${KB_MODE:-local}"
+export KB_MODE
 
 echo "=== Installing Database (MongoDB) ==="
 deploy_mongodb

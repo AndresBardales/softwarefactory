@@ -17,22 +17,22 @@ echo "=== Setting Up Source Repositories ==="
 # ---------------------------------------------------------------------------
 # Validate required variables
 # ---------------------------------------------------------------------------
-GIT_PROVIDER="${SF_GIT_PROVIDER:-github}"
-GIT_USER="${SF_GIT_USER:-}"
-GIT_EMAIL="${SF_GIT_EMAIL:-installer@softwarefactory.dev}"
-GIT_TOKEN="${SF_GIT_TOKEN:-}"
-GIT_WORKSPACE="${SF_GIT_WORKSPACE:-$GIT_USER}"
-DOCKER_USER="${SF_DOCKER_USER:-${SF_DOCKER_USERNAME:-}}"
-DOCKER_TOKEN="${SF_DOCKER_TOKEN:-}"
-DOMAIN="${SF_DOMAIN:-nexus.local}"
-TAILSCALE_DNS="${SF_TAILSCALE_DNS_SUFFIX:-}"
+GIT_PROVIDER="${KB_GIT_PROVIDER:-github}"
+GIT_USER="${KB_GIT_USER:-}"
+GIT_EMAIL="${KB_GIT_EMAIL:-installer@softwarefactory.dev}"
+GIT_TOKEN="${KB_GIT_TOKEN:-}"
+GIT_WORKSPACE="${KB_GIT_WORKSPACE:-$GIT_USER}"
+DOCKER_USER="${KB_DOCKER_USER:-${KB_DOCKER_USERNAME:-}}"
+DOCKER_TOKEN="${KB_DOCKER_TOKEN:-}"
+DOMAIN="${KB_DOMAIN:-kaanbal.local}"
+TAILSCALE_DNS="${KB_TAILSCALE_DNS_SUFFIX:-}"
 
 if [ -z "$GIT_USER" ] || [ -z "$GIT_TOKEN" ]; then
-  log_error "Git credentials not configured. Ensure SF_GIT_USER and SF_GIT_TOKEN are set."
+  log_error "Git credentials not configured. Ensure KB_GIT_USER and KB_GIT_TOKEN are set."
   exit 1
 fi
 if [ -z "$DOCKER_USER" ] || [ -z "$DOCKER_TOKEN" ]; then
-  log_error "Docker Hub credentials not configured. Ensure SF_DOCKER_USER and SF_DOCKER_TOKEN are set."
+  log_error "Docker Hub credentials not configured. Ensure KB_DOCKER_USER and KB_DOCKER_TOKEN are set."
   exit 1
 fi
 
@@ -136,7 +136,7 @@ gh_push_code() {
 
   git remote add origin "$AUTH_URL"
   git add -A
-  git commit -m "feat: initial commit from Software Factory installer"
+  git commit -m "feat: initial commit from Kaanbal Engine installer"
   git push -u origin main 2>&1 || {
     log_warn "Push failed — repo may already have content"
     cd /
@@ -235,12 +235,12 @@ gh_configure_infra_secrets() {
   gh_set_secret "$repo_slug" "INFRA_GIT_TOKEN"       "$GIT_TOKEN"
 
   # Infrastructure-specific secrets
-  [ -n "${SF_CLOUDFLARE_TOKEN:-}" ]      && gh_set_secret "$repo_slug" "CLOUDFLARE_API_TOKEN"    "${SF_CLOUDFLARE_TOKEN}"
-  [ -n "${SF_CLOUDFLARE_ACCOUNT_ID:-}" ] && gh_set_secret "$repo_slug" "CLOUDFLARE_ACCOUNT_ID"   "${SF_CLOUDFLARE_ACCOUNT_ID}"
-  [ -n "${SF_TAILSCALE_CLIENT_ID:-}" ]   && gh_set_secret "$repo_slug" "TAILSCALE_CLIENT_ID"     "${SF_TAILSCALE_CLIENT_ID}"
-  [ -n "${SF_TAILSCALE_CLIENT_SECRET:-}" ] && gh_set_secret "$repo_slug" "TAILSCALE_CLIENT_SECRET" "${SF_TAILSCALE_CLIENT_SECRET}"
-  [ -n "${SF_ARGOCD_PASSWORD:-}" ]       && gh_set_secret "$repo_slug" "ARGOCD_PASSWORD"         "${SF_ARGOCD_PASSWORD}"
-  [ -n "${SF_DOMAIN:-}" ]                && gh_set_secret "$repo_slug" "DOMAIN"                  "${SF_DOMAIN}"
+  [ -n "${KB_CLOUDFLARE_TOKEN:-}" ]      && gh_set_secret "$repo_slug" "CLOUDFLARE_API_TOKEN"    "${KB_CLOUDFLARE_TOKEN}"
+  [ -n "${KB_CLOUDFLARE_ACCOUNT_ID:-}" ] && gh_set_secret "$repo_slug" "CLOUDFLARE_ACCOUNT_ID"   "${KB_CLOUDFLARE_ACCOUNT_ID}"
+  [ -n "${KB_TAILSCALE_CLIENT_ID:-}" ]   && gh_set_secret "$repo_slug" "TAILSCALE_CLIENT_ID"     "${KB_TAILSCALE_CLIENT_ID}"
+  [ -n "${KB_TAILSCALE_CLIENT_SECRET:-}" ] && gh_set_secret "$repo_slug" "TAILSCALE_CLIENT_SECRET" "${KB_TAILSCALE_CLIENT_SECRET}"
+  [ -n "${KB_ARGOCD_PASSWORD:-}" ]       && gh_set_secret "$repo_slug" "ARGOCD_PASSWORD"         "${KB_ARGOCD_PASSWORD}"
+  [ -n "${KB_DOMAIN:-}" ]                && gh_set_secret "$repo_slug" "DOMAIN"                  "${KB_DOMAIN}"
 
   log_info "Infrastructure secrets configured for '${repo_slug}'"
 }
@@ -339,7 +339,7 @@ bb_push_code() {
   git config user.name "SF Installer"
   git remote add origin "$AUTH_URL"
   git add -A
-  git commit -m "feat: initial commit from Software Factory installer"
+  git commit -m "feat: initial commit from Kaanbal Engine installer"
   git push -u origin main 2>&1 || {
     log_warn "Push failed — repo may already have content"
     cd /
@@ -459,12 +459,12 @@ if [ "$GIT_PROVIDER" = "github" ]; then
 
   # ===== GITHUB FLOW =====
   log_step "Phase 1: Creating GitHub repositories..."
-  gh_create_repo "nexus-api" "Backend API (FastAPI + Python)"
-  gh_create_repo "nexus-console" "Frontend UI (Vue 3 + Tailwind)"
+  gh_create_repo "kaanbal-api" "Backend API (FastAPI + Python)"
+  gh_create_repo "kaanbal-console" "Frontend UI (Vue 3 + Tailwind)"
   gh_create_repo "infra-gitops" "Infrastructure manifests & GitOps"
 
   log_step "Phase 2: Pushing source code..."
-  for repo in nexus-api nexus-console infra-gitops; do
+  for repo in kaanbal-api kaanbal-console infra-gitops; do
     if [ -f "$TEMPLATE_DIR/${repo}.tar.gz" ]; then
       gh_push_code "$repo" "$TEMPLATE_DIR/${repo}.tar.gz"
     else
@@ -473,8 +473,8 @@ if [ "$GIT_PROVIDER" = "github" ]; then
   done
 
   log_step "Phase 3: Configuring GitHub Actions secrets..."
-  gh_configure_secrets "nexus-api" || log_warn "Some secrets not set for nexus-api — check GitHub Actions settings"
-  gh_configure_secrets "nexus-console" || log_warn "Some secrets not set for nexus-console — check GitHub Actions settings"
+  gh_configure_secrets "kaanbal-api" || log_warn "Some secrets not set for kaanbal-api — check GitHub Actions settings"
+  gh_configure_secrets "kaanbal-console" || log_warn "Some secrets not set for kaanbal-console — check GitHub Actions settings"
   gh_configure_infra_secrets || log_warn "Some infra secrets not set — check GitHub Actions settings"
 
   log_step "Phase 4: CI/CD will trigger automatically on push..."
@@ -486,19 +486,19 @@ if [ "$GIT_PROVIDER" = "github" ]; then
 
   api_ok=false
   console_ok=false
-  wait_for_docker_image "$DOCKER_USER" "nexus-api" && api_ok=true
-  wait_for_docker_image "$DOCKER_USER" "nexus-console" && console_ok=true
+  wait_for_docker_image "$DOCKER_USER" "kaanbal-api" && api_ok=true
+  wait_for_docker_image "$DOCKER_USER" "kaanbal-console" && console_ok=true
 
 elif [ "$GIT_PROVIDER" = "bitbucket" ]; then
 
   # ===== BITBUCKET FLOW =====
   log_step "Phase 1: Creating Bitbucket repositories..."
-  bb_create_repo "nexus-api" "Backend API (FastAPI + Python)"
-  bb_create_repo "nexus-console" "Frontend UI (Vue 3 + Tailwind)"
+  bb_create_repo "kaanbal-api" "Backend API (FastAPI + Python)"
+  bb_create_repo "kaanbal-console" "Frontend UI (Vue 3 + Tailwind)"
   bb_create_repo "infra-gitops" "Infrastructure manifests & GitOps"
 
   log_step "Phase 2: Pushing source code..."
-  for repo in nexus-api nexus-console infra-gitops; do
+  for repo in kaanbal-api kaanbal-console infra-gitops; do
     if [ -f "$TEMPLATE_DIR/${repo}.tar.gz" ]; then
       bb_push_code "$repo" "$TEMPLATE_DIR/${repo}.tar.gz"
     else
@@ -507,22 +507,22 @@ elif [ "$GIT_PROVIDER" = "bitbucket" ]; then
   done
 
   log_step "Phase 3: Configuring Bitbucket Pipelines..."
-  bb_enable_pipelines "nexus-api"
-  bb_enable_pipelines "nexus-console"
-  bb_configure_pipeline_vars "nexus-api"
-  bb_configure_pipeline_vars "nexus-console"
+  bb_enable_pipelines "kaanbal-api"
+  bb_enable_pipelines "kaanbal-console"
+  bb_configure_pipeline_vars "kaanbal-api"
+  bb_configure_pipeline_vars "kaanbal-console"
 
   log_step "Phase 4: Triggering first pipeline builds..."
-  bb_trigger_pipeline "nexus-api" "main" || true
-  bb_trigger_pipeline "nexus-console" "main" || true
+  bb_trigger_pipeline "kaanbal-api" "main" || true
+  bb_trigger_pipeline "kaanbal-console" "main" || true
 
   log_step "Phase 5: Waiting for Docker images to be built..."
   log_info "Bitbucket Pipelines are building Docker images. This takes 2-5 minutes..."
 
   api_ok=false
   console_ok=false
-  wait_for_docker_image "$DOCKER_USER" "nexus-api" && api_ok=true
-  wait_for_docker_image "$DOCKER_USER" "nexus-console" && console_ok=true
+  wait_for_docker_image "$DOCKER_USER" "kaanbal-api" && api_ok=true
+  wait_for_docker_image "$DOCKER_USER" "kaanbal-console" && console_ok=true
 
 else
   log_error "Unsupported git provider: $GIT_PROVIDER (expected 'github' or 'bitbucket')"
