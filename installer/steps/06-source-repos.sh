@@ -27,6 +27,35 @@ DOCKER_TOKEN="${KB_DOCKER_TOKEN:-}"
 DOMAIN="${KB_DOMAIN:-kaanbal.local}"
 TAILSCALE_DNS="${KB_TAILSCALE_DNS_SUFFIX:-}"
 
+# ---------------------------------------------------------------------------
+# Pre-generate credentials for infra-gitops template substitution
+# These MUST exist before pushing infra-gitops so ArgoCD gets correct values
+# ---------------------------------------------------------------------------
+CONFIG_FILE="$HOME/.software-factory/config.env"
+
+MONGO_PASSWORD=""
+if [ -f "$CONFIG_FILE" ]; then
+  MONGO_PASSWORD=$(grep '^KB_MONGO_PASSWORD=' "$CONFIG_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)
+fi
+if [ -z "$MONGO_PASSWORD" ]; then
+  MONGO_PASSWORD="$(generate_password 20)"
+  echo "KB_MONGO_PASSWORD=\"${MONGO_PASSWORD}\"" >> "$CONFIG_FILE"
+  log_info "Generated MongoDB password (saved to config.env)"
+fi
+
+MONGO_URI="mongodb://admin:${MONGO_PASSWORD}@datastore.prod.svc.cluster.local:27017/forge?authSource=admin"
+grep -q '^KB_MONGODB_URI=' "$CONFIG_FILE" 2>/dev/null || echo "KB_MONGODB_URI=\"${MONGO_URI}\"" >> "$CONFIG_FILE"
+
+SECRET_KEY=""
+if [ -f "$CONFIG_FILE" ]; then
+  SECRET_KEY=$(grep '^KB_SECRET_KEY=' "$CONFIG_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)
+fi
+if [ -z "$SECRET_KEY" ]; then
+  SECRET_KEY="$(generate_password 32)"
+  echo "KB_SECRET_KEY=\"${SECRET_KEY}\"" >> "$CONFIG_FILE"
+  log_info "Generated SECRET_KEY (saved to config.env)"
+fi
+
 if [ -z "$GIT_USER" ] || [ -z "$GIT_TOKEN" ]; then
   log_error "Git credentials not configured. Ensure KB_GIT_USER and KB_GIT_TOKEN are set."
   exit 1
@@ -146,6 +175,8 @@ gh_push_code() {
     -e "s|__GIT_PROVIDER__|${GIT_PROVIDER}|g" \
     -e "s|__GIT_USER__|${GIT_USER}|g" \
     -e "s|__TAILSCALE_DNS__|${TAILSCALE_DNS}|g" \
+    -e "s|__MONGO_PASSWORD__|${MONGO_PASSWORD}|g" \
+    -e "s|__SECRET_KEY__|${SECRET_KEY}|g" \
     {} +
 
   cd "$tmp_dir"
@@ -350,6 +381,8 @@ bb_push_code() {
     -e "s|__GIT_PROVIDER__|${GIT_PROVIDER}|g" \
     -e "s|__GIT_USER__|${GIT_USER}|g" \
     -e "s|__TAILSCALE_DNS__|${TAILSCALE_DNS}|g" \
+    -e "s|__MONGO_PASSWORD__|${MONGO_PASSWORD}|g" \
+    -e "s|__SECRET_KEY__|${SECRET_KEY}|g" \
     {} +
 
   cd "$tmp_dir"

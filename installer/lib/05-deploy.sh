@@ -83,10 +83,11 @@ deploy_mongodb() {
 
   local mongo_uri="mongodb://admin:${mongo_password}@datastore.prod.svc.cluster.local:27017/forge?authSource=admin"
 
-  kubectl create secret generic mongodb-secret \
+  # Create datastore-credentials (matches infra-gitops/ArgoCD expected secret name + keys)
+  kubectl create secret generic datastore-credentials \
     -n prod \
-    --from-literal=MONGO_INITDB_ROOT_USERNAME=admin \
-    --from-literal=MONGO_INITDB_ROOT_PASSWORD="$mongo_password" \
+    --from-literal=root-username=admin \
+    --from-literal=root-password="$mongo_password" \
     --dry-run=client -o yaml | kubectl apply -f -
 
   if ! kubectl -n prod get pvc datastore-data &>/dev/null; then
@@ -133,9 +134,17 @@ spec:
         image: mongo:7
         ports:
         - containerPort: 27017
-        envFrom:
-        - secretRef:
-            name: mongodb-secret
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: datastore-credentials
+              key: root-username
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: datastore-credentials
+              key: root-password
         resources:
           requests:
             cpu: 100m
@@ -522,12 +531,19 @@ deploy_kaanbal_engine() {
   log_step "Deploying MongoDB..."
 
   local mongo_password
-  mongo_password="$(generate_password 20)"
+  if [ -f "$config_file" ]; then
+    mongo_password=$(grep '^KB_MONGO_PASSWORD=' "$config_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' || true)
+  fi
+  if [ -z "$mongo_password" ]; then
+    mongo_password="$(generate_password 20)"
+    echo "KB_MONGO_PASSWORD=\"${mongo_password}\"" >> "$config_file"
+  fi
 
-  kubectl create secret generic mongodb-secret \
+  # Create datastore-credentials (matches infra-gitops/ArgoCD expected secret name + keys)
+  kubectl create secret generic datastore-credentials \
     -n prod \
-    --from-literal=MONGO_INITDB_ROOT_USERNAME=admin \
-    --from-literal=MONGO_INITDB_ROOT_PASSWORD="$mongo_password" \
+    --from-literal=root-username=admin \
+    --from-literal=root-password="$mongo_password" \
     --dry-run=client -o yaml | kubectl apply -f -
 
   local mongo_uri="mongodb://admin:${mongo_password}@datastore.prod.svc.cluster.local:27017/forge?authSource=admin"
@@ -578,9 +594,17 @@ spec:
         image: mongo:7
         ports:
         - containerPort: 27017
-        envFrom:
-        - secretRef:
-            name: mongodb-secret
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: datastore-credentials
+              key: root-username
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: datastore-credentials
+              key: root-password
         resources:
           requests:
             cpu: 100m

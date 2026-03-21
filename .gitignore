@@ -1,6 +1,8 @@
 tmpclaude-*
 *.log
 .env
+test-credentials.env
+.agent/lab/tmp_*
 installer/_old_cli_backup/
 installer/manifests/
 installer/modes/

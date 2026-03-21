@@ -45,13 +45,37 @@ REPOS=("kaanbal-api" "kaanbal-console" "infra-gitops" "kaanbal-templates")
 
 # Source directory overrides (when local dir name differs from repo name)
 declare -A REPO_SOURCE_DIR
-REPO_SOURCE_DIR[kaanbal-templates]="nexus-templates"
+# All repos now use their canonical names at workspace root
 
 # Current owner values — these get replaced with __PLACEHOLDER__ tokens in tarballs
 # so the installer can substitute the new user's values
 CURRENT_GIT_WORKSPACE="${KB_CURRENT_GIT_WORKSPACE:-andresbardaleswork-cyber}"
 CURRENT_DOCKER_USER="${KB_CURRENT_DOCKER_USER:-andresbardaleswork}"
 CURRENT_DOMAIN="${KB_CURRENT_DOMAIN:-automation.com.mx}"
+
+# Sensitive values auto-detected from infra-gitops (replaced with __PLACEHOLDER__ tokens)
+CURRENT_MONGO_PASSWORD=""
+CURRENT_SECRET_KEY=""
+
+_detect_sensitive_values() {
+  local ig_path="$WORKSPACE/infra-gitops"
+  if [ -d "$ig_path/apps/datastore/base" ]; then
+    CURRENT_MONGO_PASSWORD=$(python3 -c "
+import re
+with open('${ig_path}/apps/datastore/base/secret.yaml') as f:
+    m = re.search(r'root-password:\s*\"(.+?)\"', f.read())
+    print(m.group(1) if m else '')
+" 2>/dev/null || true)
+    CURRENT_SECRET_KEY=$(python3 -c "
+import re
+with open('${ig_path}/apps/kaanbal-api/base/deployment.yaml') as f:
+    m = re.search(r'name: SECRET_KEY\n\s+value:\s*\"(.+?)\"', f.read())
+    print(m.group(1) if m else '')
+" 2>/dev/null || true)
+    [ -n "$CURRENT_MONGO_PASSWORD" ] && log_info "Auto-detected MongoDB password for templatization"
+    [ -n "$CURRENT_SECRET_KEY" ] && log_info "Auto-detected SECRET_KEY for templatization"
+  fi
+}
 
 # Files/dirs to exclude from tarballs (they are dev-only or regenerated)
 EXCLUDE_PATTERNS=(
@@ -87,6 +111,20 @@ templatize_dir() {
     -e "s|${CURRENT_DOCKER_USER}|__DOCKER_USER__|g" \
     -e "s|${CURRENT_DOMAIN}|__DOMAIN__|g" \
     {} +
+
+  # Replace sensitive values (auto-detected from infra-gitops)
+  # __MONGO_PASSWORD__ = MongoDB root password (generated per install)
+  # __SECRET_KEY__ = kaanbal-api JWT/session key (generated per install)
+  if [ -n "${CURRENT_MONGO_PASSWORD:-}" ]; then
+    find "$dir" -type f \( -name '*.yaml' -o -name '*.yml' \) -exec sed -i \
+      -e "s|${CURRENT_MONGO_PASSWORD}|__MONGO_PASSWORD__|g" \
+      {} +
+  fi
+  if [ -n "${CURRENT_SECRET_KEY:-}" ]; then
+    find "$dir" -type f \( -name '*.yaml' -o -name '*.yml' \) -exec sed -i \
+      -e "s|${CURRENT_SECRET_KEY}|__SECRET_KEY__|g" \
+      {} +
+  fi
 }
 
 # ==============================================================================
@@ -153,6 +191,9 @@ echo ""
 
 # Create output directory
 mkdir -p "$OUTPUT_DIR"
+
+# Auto-detect sensitive values for templatization
+_detect_sensitive_values
 
 # Validate all repos exist before starting
 for repo in "${REPOS[@]}"; do
