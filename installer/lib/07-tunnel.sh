@@ -145,7 +145,10 @@ except Exception:
   export KB_CLOUDFLARE_TUNNEL_TOKEN="${tunnel_token}"
   export KB_CLOUDFLARE_TUNNEL_ID="${tunnel_id}"
 
-  # ── Step 2: Configure ingress rules (which hostname → which K8s service) ──
+  # ── Step 2: Configure ingress rules (all traffic through ingress-nginx) ──
+  # IMPORTANT: All hostnames MUST route through ingress-nginx, not directly to
+  # app services. This ensures cert-manager ACME HTTP-01 solver ingresses are
+  # reachable for TLS certificate issuance.
   log_step "Configuring ingress rules..."
 
   curl -sf -X PUT \
@@ -157,15 +160,15 @@ except Exception:
         \"ingress\": [
           {
             \"hostname\": \"kaanbal-console.${KB_DOMAIN}\",
-            \"service\": \"http://kaanbal-console.prod.svc.cluster.local:80\"
+            \"service\": \"http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80\"
           },
           {
             \"hostname\": \"api.${KB_DOMAIN}\",
-            \"service\": \"http://kaanbal-api.prod.svc.cluster.local:80\"
+            \"service\": \"http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80\"
           },
           {
             \"hostname\": \"kaanbal-api.${KB_DOMAIN}\",
-            \"service\": \"http://kaanbal-api.prod.svc.cluster.local:80\"
+            \"service\": \"http://ingress-nginx-controller.ingress-nginx.svc.cluster.local:80\"
           },
           {
             \"hostname\": \"*.${KB_DOMAIN}\",
