@@ -157,11 +157,14 @@ if [ "${KB_MODE:-standalone}" != "standalone" ] && [ "${KB_MODE:-local}" != "loc
   if [ "${KB_TAILSCALE_ENABLED:-false}" = "true" ]; then
     echo ""
     log_step "Tailscale VPN"
-    ts_running=$(pod_ready "tailscale" "app=tailscale-operator")
-    if [ "$ts_running" -ge 1 ]; then
+    if ! kubectl get secret operator-oauth -n tailscale >/dev/null 2>&1; then
+      check_fail "Tailscale Operator: secret operator-oauth is missing"
+    elif kubectl rollout status deployment/operator -n tailscale --timeout=120s >/dev/null 2>&1; then
       check_ok "Tailscale Operator: running"
     else
-      check_warn "Tailscale Operator: not running yet"
+      ts_status=$(kubectl get pods -n tailscale -l app.kubernetes.io/name=tailscale-operator --no-headers 2>/dev/null | awk 'NR==1 {print $3}')
+      ts_status=${ts_status:-unknown}
+      check_fail "Tailscale Operator: not ready (${ts_status})"
     fi
   fi
 

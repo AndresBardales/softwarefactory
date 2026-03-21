@@ -390,34 +390,30 @@ VPOL
     log_step "Installing Tailscale Operator..."
     if [ -z "${KB_TAILSCALE_CLIENT_ID:-}" ] || [ -z "${KB_TAILSCALE_CLIENT_SECRET:-}" ]; then
       log_warn "Tailscale credentials missing — skipping Tailscale Operator"
-    elif helm repo add tailscale https://pkgs.tailscale.com/helmcharts 2>/dev/null && \
-         helm repo update tailscale 2>/dev/null; then
-
-      # ---- Pre-flight: Configure ACL tagOwners BEFORE installing operator ----
-      # Without tag:k8s-operator in tagOwners, the operator will CrashLoopBackOff.
+    else
+      # ---- Pre-flight: Configure ACL tagOwners BEFORE apps use Tailscale ----
+      # Without tag:k8s-operator in tagOwners, the operator may fail to provision proxies.
       if [ -n "${KB_TAILSCALE_ACL_TOKEN:-}" ]; then
         log_step "Configuring Tailscale ACL tagOwners..."
         local acl_response
         acl_response=$(curl -sf -u "${KB_TAILSCALE_ACL_TOKEN}:" \
           https://api.tailscale.com/api/v2/tailnet/-/acl 2>/dev/null || echo "")
         if [ -n "$acl_response" ]; then
-          # Build new ACL with required tagOwners (preserving existing grants/ssh)
           local new_acl
           new_acl=$(python3 -c "
-import json, sys, re
+import json, re
 try:
     raw = '''${acl_response}'''
-    # Strip JSONC comments for parsing
     cleaned = re.sub(r'//.*', '', raw)
     cleaned = re.sub(r'/\\*.*?\\*/', '', cleaned, flags=re.DOTALL)
     acl = json.loads(cleaned)
-except:
+except Exception:
     acl = {}
 required_tags = {
     'tag:k8s-operator': ['autogroup:admin'],
     'tag:k8s': ['tag:k8s-operator', 'autogroup:admin'],
     'tag:database': ['tag:k8s-operator', 'autogroup:admin'],
-    'tag:iot': ['tag:k8s-operator', 'autogroup:admin']
+    'tag:iot': ['tag:k8s-operator', 'autogroup:admin'],
 }
 existing = acl.get('tagOwners', {})
 existing.update(required_tags)
@@ -438,33 +434,39 @@ print(json.dumps(acl))
             if [ "$acl_status" = "200" ]; then
               log_info "Tailscale ACL tagOwners configured ✓"
             else
-              log_warn "Tailscale ACL update returned HTTP ${acl_status} — operator may fail to start"
+              log_warn "Tailscale ACL update returned HTTP ${acl_status} — operator may fail to provision proxies"
             fi
           else
-            log_warn "Failed to build ACL JSON — operator may fail to start"
+            log_warn "Failed to build ACL JSON — operator may fail to provision proxies"
           fi
         else
-          log_warn "Cannot read Tailscale ACL (API error) — operator may fail to start"
+          log_warn "Cannot read Tailscale ACL (API error) — operator may fail to provision proxies"
         fi
       else
         log_warn "No KB_TAILSCALE_ACL_TOKEN — skipping ACL tagOwners setup (operator may fail)"
       fi
 
-      # Remove any pre-existing operator-oauth secret that lacks Helm labels
-      # (prevents "invalid ownership metadata" error on helm install)
-      kubectl delete secret operator-oauth -n tailscale --ignore-not-found 2>/dev/null || true
-      if helm upgrade --install tailscale-operator tailscale/tailscale-operator \
+      # The live operator is managed by ArgoCD from infra-gitops/apps/tailscale-operator.
+      # Persist the OAuth credentials as the secret expected by that Deployment.
+      if kubectl create secret generic operator-oauth \
         -n tailscale \
-        --set oauth.clientId="$KB_TAILSCALE_CLIENT_ID" \
-        --set oauth.clientSecret="$KB_TAILSCALE_CLIENT_SECRET" \
-        --set operatorConfig.hostname="sf-operator" \
-        --wait --timeout 300s 2>&1; then
-        log_info "Tailscale Operator installed"
+        --from-literal=client_id="$KB_TAILSCALE_CLIENT_ID" \
+        --from-literal=client_secret="$KB_TAILSCALE_CLIENT_SECRET" \
+        --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1; then
+        log_info "Tailscale operator OAuth secret configured"
       else
-        log_warn "Tailscale Operator install failed — mesh VPN will not be available"
+        log_warn "Failed to create operator-oauth secret — mesh VPN will not be available"
       fi
-    else
-      log_warn "Cannot add tailscale helm repo — skipping Tailscale"
+
+      if kubectl get deployment operator -n tailscale >/dev/null 2>&1; then
+        if kubectl rollout status deployment/operator -n tailscale --timeout=180s >/dev/null 2>&1; then
+          log_info "Tailscale Operator ready"
+        else
+          log_warn "Tailscale Operator not ready yet — ArgoCD will continue reconciling"
+        fi
+      else
+        log_info "Tailscale Operator will be reconciled by ArgoCD"
+      fi
     fi
   fi
 

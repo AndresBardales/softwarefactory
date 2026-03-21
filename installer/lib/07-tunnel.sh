@@ -2,6 +2,7 @@
 # ==============================================================================
 # lib/07-tunnel.sh — Cloudflare Tunnel setup (hybrid mode)
 # ==============================================================================
+KB_CONFIG="${KB_CONFIG:-$HOME/.software-factory/config.env}"
 # Creates (or reuses) a Cloudflare Tunnel that routes traffic from *.domain.com
 # to the local K3s cluster — no open inbound ports, free TLS, global CDN.
 #

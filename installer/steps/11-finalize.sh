@@ -213,7 +213,7 @@ fi
 if [ "${KB_TAILSCALE_ENABLED:-false}" = "true" ]; then
   echo "  🌐  Tailscale VPN"
   echo "     Tailnet  : ${KB_TAILSCALE_DNS_SUFFIX:-check tailscale.com/admin}"
-  echo "     Status   : $(kubectl get pods -n tailscale -l app=tailscale-operator --no-headers 2>/dev/null | head -1 | awk '{print $3}' || echo 'check: kubectl get pods -n tailscale')"
+  echo "     Status   : $(kubectl get pods -n tailscale -l app.kubernetes.io/name=tailscale-operator --no-headers 2>/dev/null | head -1 | awk '{print $3}' || echo 'check: kubectl get pods -n tailscale')"
   echo ""
 fi
 if [ -n "$REPO_BASE" ]; then
