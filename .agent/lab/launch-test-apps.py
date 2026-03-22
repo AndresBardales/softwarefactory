@@ -28,9 +28,6 @@ ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "admin123#")
 
 # Test app definitions
-# NOTE: Code-based templates (vue3-spa, fastapi-api) are SKIPPED because
-# kaanbal-templates repo has only metadata and empty directory skeletons.
-# This is a separate issue to fix — populate template content first.
 TEST_APPS = [
     {
         "name": "e2e-mongo",
@@ -56,13 +53,26 @@ TEST_APPS = [
         "expect_status": "running",
         "category": "database",
     },
+    {
+        "name": "e2e-vue3",
+        "template": "vue3-spa",
+        "environments": ["dev"],
+        "exposure": {"type": "public"},
+        "expect_status": "running",
+        "category": "frontend",
+    },
+    {
+        "name": "e2e-fastapi",
+        "template": "fastapi-api",
+        "environments": ["dev"],
+        "exposure": {"type": "internal"},
+        "expect_status": "running",
+        "category": "backend",
+    },
 ]
 
 # Templates that are BLOCKED (document why, don't attempt)
-SKIPPED_TEMPLATES = {
-    "vue3-spa": "Scaffold requires npm (not in cluster) + fallback template files are empty in kaanbal-templates repo",
-    "fastapi-api": "scaffold.source 'templates/backend/fastapi-api' directory is empty in kaanbal-templates repo",
-}
+SKIPPED_TEMPLATES: dict = {}
 
 # ─── HTTP Helpers ────────────────────────────────────────────────────────────
 def http_json(method, url, data=None, token=None, timeout=30):
