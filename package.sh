@@ -72,8 +72,8 @@ with open('${ig_path}/apps/kaanbal-api/base/deployment.yaml') as f:
     m = re.search(r'name: SECRET_KEY\n\s+value:\s*\"(.+?)\"', f.read())
     print(m.group(1) if m else '')
 " 2>/dev/null || true)
-    [ -n "$CURRENT_MONGO_PASSWORD" ] && log_info "Auto-detected MongoDB password for templatization"
-    [ -n "$CURRENT_SECRET_KEY" ] && log_info "Auto-detected SECRET_KEY for templatization"
+    if [ -n "$CURRENT_MONGO_PASSWORD" ]; then log_info "Auto-detected MongoDB password for templatization"; fi
+    if [ -n "$CURRENT_SECRET_KEY" ]; then log_info "Auto-detected SECRET_KEY for templatization"; fi
   fi
 }
 
@@ -212,6 +212,37 @@ for repo in "${REPOS[@]}"; do
     errors=$((errors + 1))
   fi
 done
+
+# Scaffold completeness guard: kaanbal-templates must contain required Dockerfiles
+log_step "Validating kaanbal-templates scaffold completeness..."
+TEMPLATES_TARBALL="$OUTPUT_DIR/kaanbal-templates.tar.gz"
+if [ -f "$TEMPLATES_TARBALL" ]; then
+  MISSING_SCAFFOLDS=()
+  tarball_listing=$(tar -tzf "$TEMPLATES_TARBALL" 2>/dev/null || true)
+  for required_file in \
+    "kaanbal-templates/templates/frontend/vue3-spa/Dockerfile" \
+    "kaanbal-templates/templates/backend/fastapi-api/Dockerfile"; do
+    if ! grep -qF "$required_file" <<< "$tarball_listing"; then
+      MISSING_SCAFFOLDS+=("$required_file")
+    fi
+  done
+  if [ ${#MISSING_SCAFFOLDS[@]} -gt 0 ]; then
+    for missing in "${MISSING_SCAFFOLDS[@]}"; do
+      log_warn "Scaffold file absent from tarball: $missing"
+    done
+    if [ ${#MISSING_SCAFFOLDS[@]} -ge 2 ]; then
+      log_error "Both code template scaffolds are missing — packaging blocked."
+      log_error "Commit scaffold content to kaanbal-templates before running package.sh"
+      errors=$((errors + 1))
+    else
+      log_warn "One code template scaffold is missing — package will have partial template support"
+    fi
+  else
+    log_info "Scaffold completeness check passed"
+  fi
+else
+  log_warn "kaanbal-templates.tar.gz not found — skipping scaffold check"
+fi
 
 echo ""
 

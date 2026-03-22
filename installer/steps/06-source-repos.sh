@@ -136,16 +136,23 @@ gh_push_code() {
 
   # Check if remote already has commits
   if git ls-remote --heads "$AUTH_URL" main 2>/dev/null | grep -q main; then
-    log_info "Repo '${repo_slug}' already has code on main — skipping push"
-    # Trigger workflow_dispatch for app repos so Docker images get built
-    if [ "$repo_slug" != "infra-gitops" ]; then
-      log_info "Triggering CI/CD build via workflow_dispatch for ${repo_slug}..."
-      gh_api "POST" "https://api.github.com/repos/${GIT_WORKSPACE}/${repo_slug}/actions/workflows/build-deploy.yml/dispatches" \
-        -d "{\"ref\":\"main\"}" 2>/dev/null && \
-        log_info "Build triggered for ${repo_slug}" || \
-        log_warn "Could not trigger workflow_dispatch for ${repo_slug} — images may need manual build"
+    if [ "$repo_slug" = "kaanbal-templates" ]; then
+      # kaanbal-templates is installer-bootstrapped infrastructure (no user data)
+      # Always force-push on reinstall so scaffold files stay current
+      log_info "Repo 'kaanbal-templates' already exists — force-pushing to update scaffold files..."
+      # falls through to push logic below
+    else
+      log_info "Repo '${repo_slug}' already has code on main — skipping push"
+      # Trigger workflow_dispatch for app repos so Docker images get built
+      if [ "$repo_slug" != "infra-gitops" ]; then
+        log_info "Triggering CI/CD build via workflow_dispatch for ${repo_slug}..."
+        gh_api "POST" "https://api.github.com/repos/${GIT_WORKSPACE}/${repo_slug}/actions/workflows/build-deploy.yml/dispatches" \
+          -d "{\"ref\":\"main\"}" 2>/dev/null && \
+          log_info "Build triggered for ${repo_slug}" || \
+          log_warn "Could not trigger workflow_dispatch for ${repo_slug} — images may need manual build"
+      fi
+      return 0
     fi
-    return 0
   fi
 
   local tmp_dir
@@ -187,12 +194,21 @@ gh_push_code() {
   git remote add origin "$AUTH_URL"
   git add -A
   git commit -m "feat: initial commit from Kaanbal Engine installer"
-  git push -u origin main 2>&1 || {
-    log_warn "Push failed — repo may already have content"
-    cd /
-    rm -rf "$tmp_dir"
-    return 0
-  }
+  if [ "$repo_slug" = "kaanbal-templates" ]; then
+    git push --force -u origin main 2>&1 || {
+      log_warn "Force push failed for kaanbal-templates"
+      cd /
+      rm -rf "$tmp_dir"
+      return 1
+    }
+  else
+    git push -u origin main 2>&1 || {
+      log_warn "Push failed — repo may already have content"
+      cd /
+      rm -rf "$tmp_dir"
+      return 0
+    }
+  fi
 
   log_info "Code pushed to ${GIT_WORKSPACE}/${repo_slug}"
   cd /
@@ -362,8 +378,13 @@ bb_push_code() {
   local AUTH_URL="https://${GIT_USER}:${ENCODED_TOKEN}@bitbucket.org/${GIT_WORKSPACE}/${repo_slug}.git"
 
   if git ls-remote --heads "$AUTH_URL" main 2>/dev/null | grep -q main; then
-    log_info "Repo '${repo_slug}' already has code on main — skipping push"
-    return 0
+    if [ "$repo_slug" = "kaanbal-templates" ]; then
+      log_info "Repo 'kaanbal-templates' already exists — force-pushing to update scaffold files..."
+      # falls through to push logic below
+    else
+      log_info "Repo '${repo_slug}' already has code on main — skipping push"
+      return 0
+    fi
   fi
 
   local tmp_dir
@@ -392,12 +413,21 @@ bb_push_code() {
   git remote add origin "$AUTH_URL"
   git add -A
   git commit -m "feat: initial commit from Kaanbal Engine installer"
-  git push -u origin main 2>&1 || {
-    log_warn "Push failed — repo may already have content"
-    cd /
-    rm -rf "$tmp_dir"
-    return 0
-  }
+  if [ "$repo_slug" = "kaanbal-templates" ]; then
+    git push --force -u origin main 2>&1 || {
+      log_warn "Force push failed for kaanbal-templates"
+      cd /
+      rm -rf "$tmp_dir"
+      return 1
+    }
+  else
+    git push -u origin main 2>&1 || {
+      log_warn "Push failed — repo may already have content"
+      cd /
+      rm -rf "$tmp_dir"
+      return 0
+    }
+  fi
 
   log_info "Code pushed to ${GIT_WORKSPACE}/${repo_slug}"
   cd /

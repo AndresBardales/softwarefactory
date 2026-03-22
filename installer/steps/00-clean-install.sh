@@ -68,7 +68,7 @@ clean_remote_github_repos() {
     return 0
   fi
 
-  for repo in kaanbal-api kaanbal-console infra-gitops; do
+  for repo in kaanbal-api kaanbal-console infra-gitops kaanbal-templates; do
     log_info "Deleting GitHub repo: ${user}/${repo}"
     curl -sS -X DELETE "https://api.github.com/repos/${user}/${repo}" \
       -H "Authorization: Bearer ${token}" -H "Accept: application/vnd.github+json" >/dev/null 2>&1 || true
