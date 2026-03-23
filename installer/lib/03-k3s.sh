@@ -164,7 +164,7 @@ install_k3s() {
   local tls_sans="--tls-san 127.0.0.1 --tls-san localhost"
   if [ "$KB_MODE" = "cloud" ] || [ "$KB_MODE" = "hybrid" ]; then
     [ -n "$KB_DOMAIN" ] && tls_sans="$tls_sans --tls-san $KB_DOMAIN --tls-san *.$KB_DOMAIN"
-    [ -n "$KB_ELASTIC_IP" ] && tls_sans="$tls_sans --tls-san $KB_ELASTIC_IP"
+    [ -n "${KB_ELASTIC_IP:-}" ] && tls_sans="$tls_sans --tls-san ${KB_ELASTIC_IP}"
   fi
 
   # Disable default traefik (we use nginx-ingress)
@@ -199,7 +199,7 @@ install_k3s() {
   setup_kubeconfig
 
   # If mode allows remote access, update kubeconfig server URL
-  if [ "$KB_MODE" = "cloud" ] && [ -n "$KB_ELASTIC_IP" ]; then
+  if [ "$KB_MODE" = "cloud" ] && [ -n "${KB_ELASTIC_IP:-}" ]; then
     sed -i "s|server: https://127.0.0.1:6443|server: https://${KB_ELASTIC_IP}:6443|" "$HOME/.kube/config"
   fi
 
