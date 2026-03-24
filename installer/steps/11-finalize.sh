@@ -65,8 +65,20 @@ fi
 
 # ---------------------------------------------------------------
 # Seed admin user via kaanbal-api
+# Wait for API+MongoDB to be ready (/health passes before MongoDB is up)
 # ---------------------------------------------------------------
-if curl -sf --max-time 5 "http://localhost:30081/health" &>/dev/null; then
+log_info "Waiting for API+MongoDB to be ready (polling /setup/status)..."
+_api_ready=false
+for _i in $(seq 1 36); do  # 36 × 5s = 180s max
+  if curl -sf --max-time 5 "http://localhost:30081/api/v1/setup/status" &>/dev/null; then
+    _api_ready=true
+    log_info "API+MongoDB ready ✓"
+    break
+  fi
+  sleep 5
+done
+
+if [ "$_api_ready" = "true" ]; then
   log_info "Seeding admin user via API..."
   _git_provider="${KB_GIT_PROVIDER:-github}"
   _git_workspace="${KB_GIT_WORKSPACE:-${KB_GIT_USER:-}}"
@@ -110,7 +122,7 @@ if curl -sf --max-time 5 "http://localhost:30081/health" &>/dev/null; then
     log_error "Fix: re-run this step or manually insert system_config into MongoDB."
   fi
 else
-  log_warn "API not reachable yet — admin user will be created on first login"
+  log_warn "API+MongoDB not reachable after 180s — admin user will be created on first login"
 fi
 
 # ---------------------------------------------------------------

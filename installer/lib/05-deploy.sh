@@ -378,10 +378,11 @@ spec:
           periodSeconds: 30
         readinessProbe:
           httpGet:
-            path: /health
+            path: /ready
             port: 8000
           initialDelaySeconds: 5
           periodSeconds: 10
+          failureThreshold: 18
 ---
 apiVersion: v1
 kind: Service
@@ -789,10 +790,11 @@ spec:
           periodSeconds: 30
         readinessProbe:
           httpGet:
-            path: /health
+            path: /ready
             port: 8000
           initialDelaySeconds: 5
           periodSeconds: 10
+          failureThreshold: 18
 ---
 apiVersion: v1
 kind: Service
