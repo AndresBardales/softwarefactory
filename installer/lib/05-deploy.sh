@@ -184,6 +184,86 @@ EOFMONGO
   else
     log_info "MongoDB deployed and ready"
   fi
+
+  # ── Verify MongoDB auth works (critical gate) ──
+  # MONGO_INITDB_* only runs on a fresh /data/db. If the PVC had stale data
+  # without the expected user, auth will fail silently and break every
+  # downstream step. Detect this and recreate with a clean volume.
+  log_step "Verifying MongoDB authentication..."
+  local auth_ok=false
+  for attempt in 1 2 3; do
+    if kubectl exec -n prod deploy/datastore -- \
+        mongosh "mongodb://admin:${mongo_password}@localhost:27017/forge?authSource=admin" \
+        --eval "db.getName()" &>/dev/null; then
+      auth_ok=true
+      break
+    fi
+    sleep 5
+  done
+
+  if [ "$auth_ok" = "false" ]; then
+    log_warn "MongoDB auth failed — PVC likely has stale data. Recreating with clean volume..."
+    kubectl delete deploy datastore -n prod --ignore-not-found 2>/dev/null || true
+    kubectl delete pvc datastore-data -n prod --ignore-not-found 2>/dev/null || true
+    sleep 3
+    # Recreate PVC
+    kubectl apply -f - <<'EOFPVC2'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: datastore-data
+  namespace: prod
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+EOFPVC2
+    # Redeploy MongoDB (re-run the apply above)
+    kubectl apply -f - <<EOFMONGO2
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datastore
+  namespace: prod
+  labels: {app: datastore, environment: prod}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: datastore, environment: prod}}
+  template:
+    metadata: {labels: {app: datastore, environment: prod}}
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:7
+        ports: [{containerPort: 27017}]
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom: {secretKeyRef: {name: datastore-credentials, key: root-username}}
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom: {secretKeyRef: {name: datastore-credentials, key: root-password}}
+        resources:
+          requests: {cpu: 100m, memory: 256Mi}
+          limits: {cpu: 500m, memory: 512Mi}
+        volumeMounts: [{name: data, mountPath: /data/db}]
+      volumes:
+      - name: data
+        persistentVolumeClaim: {claimName: datastore-data}
+EOFMONGO2
+    wait_for "MongoDB (retry)" "kubectl -n prod get pod -l app=datastore -o jsonpath='{.items[0].status.containerStatuses[0].ready}' 2>/dev/null | grep -q true" 120
+    # Verify auth again
+    sleep 5
+    if kubectl exec -n prod deploy/datastore -- \
+        mongosh "mongodb://admin:${mongo_password}@localhost:27017/forge?authSource=admin" \
+        --eval "db.getName()" &>/dev/null; then
+      log_info "MongoDB auth verified after PVC reset ✓"
+    else
+      log_error "MongoDB auth still failing after PVC reset — manual intervention needed"
+      return 1
+    fi
+  else
+    log_info "MongoDB auth verified ✓"
+  fi
 }
 
 deploy_kaanbal_api() {

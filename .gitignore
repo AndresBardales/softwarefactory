@@ -12,3 +12,4 @@ conversacion.txt
 # Agent teams: keep prompts/scripts/docs versioned, ignore local run outputs
 .agent/teams/runs/
 .claude/settings.local.json
+.claude/settings.local.json

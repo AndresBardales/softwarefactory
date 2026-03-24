@@ -78,10 +78,37 @@ if curl -sf --max-time 5 "http://localhost:30081/health" &>/dev/null; then
     _bitbucket_workspace="${_git_workspace}"
   fi
 
-  curl -sf --max-time 15 -X POST "http://localhost:30081/api/v1/setup/install" \
+  _seed_response=$(curl -s --max-time 15 -X POST "http://localhost:30081/api/v1/setup/install" \
     -H "Content-Type: application/json" \
-    -d "{\"mode\":\"${KB_MODE:-hybrid}\",\"domain\":\"${KB_DOMAIN:-}\",\"git_provider\":\"${_git_provider}\",\"git_username\":\"${KB_GIT_USER:-}\",\"git_token\":\"${KB_GIT_TOKEN:-}\",\"git_workspace\":\"${_git_workspace}\",\"github_org\":\"${_github_org}\",\"bitbucket_workspace\":\"${_bitbucket_workspace}\",\"dockerhub_username\":\"${KB_DOCKER_USER:-${KB_DOCKER_USERNAME:-}}\",\"dockerhub_token\":\"${KB_DOCKER_TOKEN:-}\",\"tailscale_client_id\":\"${KB_TAILSCALE_CLIENT_ID:-}\",\"tailscale_client_secret\":\"${KB_TAILSCALE_CLIENT_SECRET:-}\",\"tailscale_dns_suffix\":\"${KB_TAILSCALE_DNS_SUFFIX:-}\",\"cloudflare_token\":\"${KB_CLOUDFLARE_TOKEN:-}\",\"cloudflare_account_id\":\"${KB_CLOUDFLARE_ACCOUNT_ID:-}\",\"cloudflare_zone_id\":\"${KB_CLOUDFLARE_ZONE_ID:-}\",\"cloudflare_tunnel_id\":\"${KB_CLOUDFLARE_TUNNEL_ID:-}\",\"admin_user\":\"${KB_ADMIN_USER}\",\"admin_password\":\"${_ADMIN_PW}\",\"argocd_password\":\"${_ARGOCD_PW}\",\"vault_addr\":\"${_VAULT_ADDR}\",\"vault_token\":\"${_VAULT_TOKEN}\",\"vault_hostname\":\"${KB_VAULT_HOSTNAME:-}\",\"cluster_ssh_host\":\"${KB_CLUSTER_SSH_HOST:-}\"}" \
-    &>/dev/null && log_info "Platform config + admin user seeded ✓" || log_warn "API seed failed — config will need manual setup"
+    -w "\n%{http_code}" \
+    -d "{\"mode\":\"${KB_MODE:-hybrid}\",\"domain\":\"${KB_DOMAIN:-}\",\"git_provider\":\"${_git_provider}\",\"git_username\":\"${KB_GIT_USER:-}\",\"git_token\":\"${KB_GIT_TOKEN:-}\",\"git_workspace\":\"${_git_workspace}\",\"github_org\":\"${_github_org}\",\"bitbucket_workspace\":\"${_bitbucket_workspace}\",\"dockerhub_username\":\"${KB_DOCKER_USER:-${KB_DOCKER_USERNAME:-}}\",\"dockerhub_token\":\"${KB_DOCKER_TOKEN:-}\",\"tailscale_client_id\":\"${KB_TAILSCALE_CLIENT_ID:-}\",\"tailscale_client_secret\":\"${KB_TAILSCALE_CLIENT_SECRET:-}\",\"tailscale_dns_suffix\":\"${KB_TAILSCALE_DNS_SUFFIX:-}\",\"cloudflare_token\":\"${KB_CLOUDFLARE_TOKEN:-}\",\"cloudflare_account_id\":\"${KB_CLOUDFLARE_ACCOUNT_ID:-}\",\"cloudflare_zone_id\":\"${KB_CLOUDFLARE_ZONE_ID:-}\",\"cloudflare_tunnel_id\":\"${KB_CLOUDFLARE_TUNNEL_ID:-}\",\"admin_user\":\"${KB_ADMIN_USER}\",\"admin_password\":\"${_ADMIN_PW}\",\"argocd_password\":\"${_ARGOCD_PW}\",\"vault_addr\":\"${_VAULT_ADDR}\",\"vault_token\":\"${_VAULT_TOKEN}\",\"vault_hostname\":\"${KB_VAULT_HOSTNAME:-}\",\"cluster_ssh_host\":\"${KB_CLUSTER_SSH_HOST:-}\"}" 2>/dev/null || echo "000")
+  _seed_http_code=$(echo "$_seed_response" | tail -1)
+
+  if [ "$_seed_http_code" = "200" ] || [ "$_seed_http_code" = "201" ]; then
+    log_info "Platform config + admin user seeded ✓"
+  else
+    log_warn "API seed returned HTTP ${_seed_http_code} — retrying in 10s..."
+    sleep 10
+    _seed_response2=$(curl -s --max-time 15 -X POST "http://localhost:30081/api/v1/setup/install" \
+      -H "Content-Type: application/json" \
+      -w "\n%{http_code}" \
+      -d "{\"mode\":\"${KB_MODE:-hybrid}\",\"domain\":\"${KB_DOMAIN:-}\",\"git_provider\":\"${_git_provider}\",\"git_username\":\"${KB_GIT_USER:-}\",\"git_token\":\"${KB_GIT_TOKEN:-}\",\"git_workspace\":\"${_git_workspace}\",\"github_org\":\"${_github_org}\",\"bitbucket_workspace\":\"${_bitbucket_workspace}\",\"dockerhub_username\":\"${KB_DOCKER_USER:-${KB_DOCKER_USERNAME:-}}\",\"dockerhub_token\":\"${KB_DOCKER_TOKEN:-}\",\"tailscale_client_id\":\"${KB_TAILSCALE_CLIENT_ID:-}\",\"tailscale_client_secret\":\"${KB_TAILSCALE_CLIENT_SECRET:-}\",\"tailscale_dns_suffix\":\"${KB_TAILSCALE_DNS_SUFFIX:-}\",\"cloudflare_token\":\"${KB_CLOUDFLARE_TOKEN:-}\",\"cloudflare_account_id\":\"${KB_CLOUDFLARE_ACCOUNT_ID:-}\",\"cloudflare_zone_id\":\"${KB_CLOUDFLARE_ZONE_ID:-}\",\"cloudflare_tunnel_id\":\"${KB_CLOUDFLARE_TUNNEL_ID:-}\",\"admin_user\":\"${KB_ADMIN_USER}\",\"admin_password\":\"${_ADMIN_PW}\",\"argocd_password\":\"${_ARGOCD_PW}\",\"vault_addr\":\"${_VAULT_ADDR}\",\"vault_token\":\"${_VAULT_TOKEN}\",\"vault_hostname\":\"${KB_VAULT_HOSTNAME:-}\",\"cluster_ssh_host\":\"${KB_CLUSTER_SSH_HOST:-}\"}" 2>/dev/null || echo "000")
+    _seed_http_code2=$(echo "$_seed_response2" | tail -1)
+    if [ "$_seed_http_code2" = "200" ] || [ "$_seed_http_code2" = "201" ]; then
+      log_info "Platform config + admin user seeded ✓ (retry)"
+    else
+      log_error "API seed FAILED (HTTP ${_seed_http_code2}) — system_config was NOT populated. Check MongoDB auth and API logs."
+    fi
+  fi
+
+  # ── Verify seed was successful ──
+  _setup_status=$(curl -sf --max-time 10 "http://localhost:30081/api/v1/setup/status" 2>/dev/null || echo '{}')
+  if echo "$_setup_status" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('has_credentials')==True" 2>/dev/null; then
+    log_info "Setup verification: has_credentials=true ✓"
+  else
+    log_error "Setup verification FAILED: system_config is empty. The console will show 'Credentials not configured'."
+    log_error "Fix: re-run this step or manually insert system_config into MongoDB."
+  fi
 else
   log_warn "API not reachable yet — admin user will be created on first login"
 fi
