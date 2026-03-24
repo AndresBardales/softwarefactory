@@ -136,10 +136,10 @@ gh_push_code() {
 
   # Check if remote already has commits
   if git ls-remote --heads "$AUTH_URL" main 2>/dev/null | grep -q main; then
-    if [ "$repo_slug" = "kaanbal-templates" ]; then
-      # kaanbal-templates is installer-bootstrapped infrastructure (no user data)
-      # Always force-push on reinstall so scaffold files stay current
-      log_info "Repo 'kaanbal-templates' already exists — force-pushing to update scaffold files..."
+    if [ "$repo_slug" = "kaanbal-templates" ] || [ "$repo_slug" = "infra-gitops" ]; then
+      # These repos are installer-managed scaffolds.
+      # Force-sync on reinstall to avoid stale manifests from older installs.
+      log_info "Repo '${repo_slug}' already exists — force-pushing to update scaffold files..."
       # falls through to push logic below
     else
       log_info "Repo '${repo_slug}' already has code on main — skipping push"
@@ -194,9 +194,9 @@ gh_push_code() {
   git remote add origin "$AUTH_URL"
   git add -A
   git commit -m "feat: initial commit from Kaanbal Engine installer"
-  if [ "$repo_slug" = "kaanbal-templates" ]; then
+  if [ "$repo_slug" = "kaanbal-templates" ] || [ "$repo_slug" = "infra-gitops" ]; then
     git push --force -u origin main 2>&1 || {
-      log_warn "Force push failed for kaanbal-templates"
+      log_warn "Force push failed for ${repo_slug}"
       cd /
       rm -rf "$tmp_dir"
       return 1
@@ -378,8 +378,8 @@ bb_push_code() {
   local AUTH_URL="https://${GIT_USER}:${ENCODED_TOKEN}@bitbucket.org/${GIT_WORKSPACE}/${repo_slug}.git"
 
   if git ls-remote --heads "$AUTH_URL" main 2>/dev/null | grep -q main; then
-    if [ "$repo_slug" = "kaanbal-templates" ]; then
-      log_info "Repo 'kaanbal-templates' already exists — force-pushing to update scaffold files..."
+    if [ "$repo_slug" = "kaanbal-templates" ] || [ "$repo_slug" = "infra-gitops" ]; then
+      log_info "Repo '${repo_slug}' already exists — force-pushing to update scaffold files..."
       # falls through to push logic below
     else
       log_info "Repo '${repo_slug}' already has code on main — skipping push"
@@ -413,9 +413,9 @@ bb_push_code() {
   git remote add origin "$AUTH_URL"
   git add -A
   git commit -m "feat: initial commit from Kaanbal Engine installer"
-  if [ "$repo_slug" = "kaanbal-templates" ]; then
+  if [ "$repo_slug" = "kaanbal-templates" ] || [ "$repo_slug" = "infra-gitops" ]; then
     git push --force -u origin main 2>&1 || {
-      log_warn "Force push failed for kaanbal-templates"
+      log_warn "Force push failed for ${repo_slug}"
       cd /
       rm -rf "$tmp_dir"
       return 1

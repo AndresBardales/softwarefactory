@@ -7,7 +7,7 @@ source "$INSTALLER_DIR/lib/00-common.sh"
 
 echo "=== Saving Credentials ==="
 
-CONFIG_DIR="$HOME/.software-factory"
+CONFIG_DIR="${KB_CONFIG_DIR:-$HOME/.software-factory}"
 CONFIG_FILE="$CONFIG_DIR/config.env"
 mkdir -p "$CONFIG_DIR"
 

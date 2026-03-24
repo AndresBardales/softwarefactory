@@ -33,9 +33,16 @@ def post(path, payload, auth=False):
     if auth:
         headers["Authorization"] = f"Bearer {TOKEN}"
     req = urllib.request.Request(BASE + path, data=data, headers=headers, method="POST")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        body = resp.read().decode("utf-8") or "{}"
-        return resp.status, json.loads(body)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            body = resp.read().decode("utf-8") or "{}"
+            return resp.status, json.loads(body)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8") or "{}"
+        try:
+            return e.code, json.loads(body)
+        except json.JSONDecodeError:
+            return e.code, {"error": body}
 
 
 def get(path, auth=False):
@@ -68,18 +75,91 @@ if not TOKEN:
     print("ERROR: INSTALLER_TOKEN not set. Set it in test-credentials.env or environment.")
     exit(1)
 
-print("AUTH", post("/api/auth", {"token": TOKEN}, auth=False))
-status, validate = post("/api/validate-credentials", payload, auth=True)
-print("VALIDATE", status, validate.get("valid"), "errors=", len(validate.get("errors", [])), "warnings=", len(validate.get("warnings", [])))
-if validate.get("errors"):
-    print("FIRST_ERROR", validate["errors"][0])
+def wait_step(step_id, timeout=600):
+    """Poll until a step finishes (done/failed/skipped), return final status."""
+    for _ in range(timeout // 5):
+        time.sleep(5)
+        _, s = get("/api/status", auth=True)
+        for item in s.get("steps", []):
+            if item["id"] == step_id:
+                if item["status"] in ("done", "failed", "skipped"):
+                    return item["status"]
+                break
+    return "timeout"
 
-print("CREDENTIALS", post("/api/credentials", payload, auth=True))
 
-for i in range(30):
-    time.sleep(10)
+def run_and_wait(step_id, env_extra=None):
+    """Trigger a step and wait for it to finish."""
+    # Check current status first
     _, s = get("/api/status", auth=True)
-    steps = {item["id"]: item["status"] for item in s.get("steps", [])}
-    print(f"T+{(i+1)*10}s", steps)
+    for item in s.get("steps", []):
+        if item["id"] == step_id:
+            if item["status"] == "done":
+                print(f"  [{step_id}] already done")
+                return "done"
+            if item["status"] == "running":
+                print(f"  [{step_id}] already running, waiting...")
+                return wait_step(step_id)
+            break
+    print(f"  [{step_id}] starting...")
+    code, resp = post(f"/api/steps/{step_id}/run", env_extra or {}, auth=True)
+    if code == 409:
+        print(f"  [{step_id}] already running (409), waiting...")
+    elif code != 200:
+        print(f"  [{step_id}] trigger returned {code}: {resp}")
+    status = wait_step(step_id)
+    print(f"  [{step_id}] -> {status}")
+    if status == "failed":
+        _, s = get("/api/status", auth=True)
+        for item in s.get("steps", []):
+            if item["id"] == step_id:
+                print(f"  EXIT_CODE={item.get('exit_code')}")
+                break
+    return status
 
-print("DONE")
+
+# ── Phase 1: Auth ──
+print("=== AUTH ===")
+print(post("/api/auth", {"token": TOKEN}, auth=False))
+
+# ── Phase 2: Auto steps 01-03 ──
+print("\n=== INFRA STEPS ===")
+for sid in ["01-system-check", "02-dependencies", "03-k3s"]:
+    st = run_and_wait(sid)
+    if st == "failed":
+        print(f"ABORT: {sid} failed")
+        exit(1)
+
+# ── Phase 3: Validate & submit credentials ──
+print("\n=== CREDENTIALS ===")
+status, validate = post("/api/validate-credentials", payload, auth=True)
+print(f"  Validate: valid={validate.get('valid')} errors={len(validate.get('errors', []))} warnings={len(validate.get('warnings', []))}")
+for err in validate.get("errors", []):
+    print(f"  ERROR: {err}")
+for warn in validate.get("warnings", []):
+    print(f"  WARN: {warn}")
+
+print("  Submitting credentials...")
+print(post("/api/credentials", payload, auth=True))
+cred_status = wait_step("04-credentials")
+print(f"  [04-credentials] -> {cred_status}")
+if cred_status == "failed":
+    print("ABORT: credentials step failed")
+    exit(1)
+
+# ── Phase 4: Auto steps 05-11 ──
+print("\n=== DEPLOY STEPS ===")
+for sid in ["05-core-services", "06-source-repos", "07-database",
+            "08-platform-api", "09-platform-console", "10-health-check", "11-finalize"]:
+    st = run_and_wait(sid, env_extra={"timeout": "600"})
+    if st == "failed":
+        print(f"WARN: {sid} failed — continuing to see remaining state")
+
+# ── Summary ──
+print("\n=== FINAL STATUS ===")
+_, s = get("/api/status", auth=True)
+for item in s.get("steps", []):
+    print(f"  {item['id']:25s} {item['status']:10s} exit={item.get('exit_code', '-')}")
+
+all_done = all(item["status"] == "done" for item in s.get("steps", []))
+print(f"\nRESULT: {'SUCCESS' if all_done else 'PARTIAL FAILURE'}")

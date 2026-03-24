@@ -1,0 +1,10 @@
+# Kaanbal Engine governance
+# Require maintainer review for all changes when branch protection enables CODEOWNERS checks.
+
+* @AndresBardales
+
+# Critical paths
+/install.sh @AndresBardales
+/package.sh @AndresBardales
+/installer/ @AndresBardales
+/.github/workflows/ @AndresBardales

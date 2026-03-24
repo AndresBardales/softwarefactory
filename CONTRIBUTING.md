@@ -2,6 +2,35 @@
 
 Thanks for your interest in improving Kaanbal Engine! This guide will help you get started.
 
+## Contributor Journey (New User to Merged Change)
+
+This is the official collaboration path for a new contributor.
+
+1. Discover current state from `AndresBardales/softwarefactory`.
+2. Fork into your own workspace (example: `andresbardaleswork-cyber/softwarefactory`).
+3. Clone your fork and create a feature branch.
+4. Implement a focused change and collect deterministic evidence.
+5. Open PR from your fork to `AndresBardales/softwarefactory:main`.
+6. Pass contribution gates (CI + evidence requirements).
+7. Maintainer review and governance decision.
+8. Merge after approval.
+
+### Governance Rule
+
+All changes are developed in contributor/dev forks first.
+Promotion to the public repository happens only through reviewed pull requests.
+
+### Evidence Rule for Installer/Core Changes
+
+If your PR touches `install.sh`, `package.sh`, or `installer/`, your PR description must include:
+
+- Clean reinstall evidence
+- E2E evidence
+- SOF-2 validation note
+- SOF-12 validation note
+
+Without this evidence, the contribution gate workflow will fail.
+
 ## Quick Start for Contributors
 
 ```bash
@@ -101,6 +130,18 @@ check_system_requirements
 3. **Update documentation** if you add or change behavior.
 4. **Keep PR description clear**: what changed, why, how to test.
 5. **Screenshots welcome** for UI changes.
+
+## Dev to Public Promotion Model
+
+Use this model to keep growth safe and auditable:
+
+1. Build and test in `andresbardaleswork-cyber` (or contributor fork).
+2. Open PR to `AndresBardales/softwarefactory`.
+3. CI contribution gates must pass.
+4. Maintainer (`AndresBardales`) performs final review.
+5. Merge only after governance approval.
+
+Tip: See `.agent/teams/PROMOTION-CHECKLIST.md` for a practical gate checklist.
 
 ## Code Style
 

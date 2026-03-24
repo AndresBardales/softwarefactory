@@ -8,7 +8,8 @@ set -euo pipefail
 INSTALLER_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 source "$INSTALLER_DIR/lib/00-common.sh"
 
-CONFIG_DIR="$HOME/.software-factory"
+CONFIG_DIR="${KB_CONFIG_DIR:-$HOME/.software-factory}"
+LEGACY_CONFIG_DIR="$HOME/.kaanbal"
 CONFIG_FILE="$CONFIG_DIR/config.env"
 STATE_FILE="$CONFIG_DIR/installer-state.json"
 
@@ -18,6 +19,9 @@ DELETE_REMOTE_REPOS="${KB_CLEAN_DELETE_REMOTE_REPOS:-false}"
 if [ -f "$CONFIG_FILE" ]; then
   # shellcheck disable=SC1090
   source "$CONFIG_FILE" || true
+elif [ -f "$LEGACY_CONFIG_DIR/config.env" ]; then
+  # shellcheck disable=SC1090
+  source "$LEGACY_CONFIG_DIR/config.env" || true
 fi
 
 echo "=== Clean Install: Wiping Everything ==="
@@ -129,6 +133,13 @@ chmod 600 "$CONFIG_FILE"
 
 rm -f "$STATE_FILE" "$CONFIG_DIR"/vault-keys.json 2>/dev/null || true
 rm -rf "$CONFIG_DIR"/logs 2>/dev/null || true
+
+# Also purge legacy state/config artifacts so they cannot reappear in UI.
+rm -f "$LEGACY_CONFIG_DIR"/installer-state.json "$LEGACY_CONFIG_DIR"/vault-keys.json 2>/dev/null || true
+rm -rf "$LEGACY_CONFIG_DIR"/logs 2>/dev/null || true
+if [ -f "$LEGACY_CONFIG_DIR/config.env" ]; then
+  sed -i '/^KB_SETUP_TOKEN=/!d' "$LEGACY_CONFIG_DIR/config.env" 2>/dev/null || true
+fi
 
 # 8) Remove temp artifacts
 sudo rm -f /tmp/sf-*.sh /tmp/sf-*.log /tmp/step-log*.bin 2>/dev/null || true

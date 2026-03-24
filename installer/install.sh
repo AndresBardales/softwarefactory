@@ -22,7 +22,8 @@ set -euo pipefail
 
 INSTALLER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KB_VERSION="1.0.0"
-KB_HOME="${KB_HOME:-$HOME/.kaanbal}"
+# Keep a single canonical installer config dir used by all step scripts.
+KB_HOME="${KB_HOME:-$HOME/.software-factory}"
 INSTALLER_PORT="${INSTALLER_PORT:-3000}"
 
 # Colors
@@ -111,6 +112,10 @@ run_dashboard() {
   # 3. Create config directory
   mkdir -p "$KB_HOME"
 
+  # Always start dashboard in fresh mode unless the user explicitly restores
+  # state via API. This avoids showing stale "already completed" steps.
+  rm -f "$KB_HOME/installer-state.json"
+
   # Minimal config (no hardcoded Docker user — the UI form provides it)
   cat > "$KB_HOME/config.env" << EOF
 KB_MODE="local"
@@ -163,6 +168,7 @@ EOF
   # 7. Launch server
   export KB_SETUP_TOKEN
   export INSTALLER_PORT
+  export KB_CONFIG_DIR="$KB_HOME"
   exec python3 "$INSTALLER_DIR/server.py"
 }
 

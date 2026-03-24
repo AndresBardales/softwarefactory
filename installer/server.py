@@ -23,7 +23,7 @@ from urllib.parse import parse_qs, urlparse
 INSTALLER_DIR = Path(__file__).resolve().parent
 STEPS_DIR = INSTALLER_DIR / "steps"
 UI_DIR = INSTALLER_DIR / "ui"
-CONFIG_DIR = Path.home() / ".kaanbal"
+CONFIG_DIR = Path(os.environ.get("KB_CONFIG_DIR", str(Path.home() / ".software-factory")))
 CONFIG_FILE = CONFIG_DIR / "config.env"
 INSTALLER_ENV = CONFIG_DIR / "installer.env"
 
@@ -105,6 +105,7 @@ def save_state():
                     "exit_code": steps_state[sid]["exit_code"],
                 }
             data["_admin"] = admin_creds.copy()
+            data["_setup_token"] = TOKEN
         STATE_FILE.write_text(json.dumps(data, indent=2))
     except Exception:
         pass  # best-effort persistence
@@ -117,6 +118,13 @@ def load_state():
         return False
     try:
         data = json.loads(STATE_FILE.read_text())
+
+        # State is bound to the setup token generated for a dashboard session.
+        # If token differs (or old state has no token), ignore stale state.
+        persisted_token = data.get("_setup_token")
+        if not persisted_token or persisted_token != TOKEN:
+            return False
+
         any_progress = False
         for sid in STEPS_ORDER:
             if sid in data:

@@ -8,3 +8,7 @@ installer/manifests/
 installer/modes/
 installer/scripts/
 conversacion.txt
+
+# Agent teams: keep prompts/scripts/docs versioned, ignore local run outputs
+.agent/teams/runs/
+.claude/settings.local.json

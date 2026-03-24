@@ -215,6 +215,21 @@ body {
                 <div style="font-size:13px;color:var(--text-secondary);">Drop a <strong>.env</strong> or <strong>.tfvars</strong> file to pre-fill credentials</div>
                 <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">or click to browse</div>
               </div>
+
+              <template x-if="cachedProfileFound">
+                <div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.24);">
+                  <div style="font-size:12px;color:#93c5fd;margin-bottom:8px;" x-text="cachedProfileMeta"></div>
+                  <div style="display:flex;gap:8px;justify-content:center;">
+                    <button @click="restoreCachedCreds()" class="btn btn-ghost" style="padding:8px 12px;font-size:11px;">Use Local Cache</button>
+                    <button @click="clearLocalCache()" class="btn btn-ghost" style="padding:8px 12px;font-size:11px;color:#fca5a5;border-color:rgba(239,68,68,.25);">Clear Cache</button>
+                  </div>
+                </div>
+              </template>
+
+              <template x-if="cacheStatusMsg">
+                <div style="margin-top:8px;font-size:12px;text-align:center;" :style="cacheStatusOk ? 'color:var(--ok);' : 'color:var(--warn);'" x-text="cacheStatusMsg"></div>
+              </template>
+
               <template x-if="configUploaded">
                 <div style="margin-top:8px;display:flex;align-items:center;gap:6px;justify-content:center;">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" stroke-width="2.5" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>
@@ -796,6 +811,7 @@ function installer(){return{
   validationErrors: [], validationWarnings: [], isValidating: false,
   adminUser:'', adminPass:'', terminalHeight: 280,
   showCleanConfirm: false, showResetConfirm: false, cleanRunning: false, cleanDeleteRemoteRepos: false, cleanDeleteTunnel: true, configUploaded: false, configUploadedMsg: '', showAws: false,
+  cachedProfileFound: false, cachedProfileMeta: '', cacheStatusMsg: '', cacheStatusOk: false, cacheTtlMinutes: 180,
 
   get doneCount(){return this.steps.filter(s=>s.status==='done'||s.status==='skipped').length;},
   get isConfigStep(){return this.currentStep?.id==='04-credentials' && (this.currentStep.status==='pending'||this.currentStep.status==='error');},
@@ -828,10 +844,107 @@ function installer(){return{
     if(!t) {this.authError='Enter a token'; this.autoAuthenticating=false; return;}
     try{
       const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})});
-      if(r.ok){this.token=t; this.authenticated=true; window.history.replaceState({},'','/'); await this.loadStatus();}
+      if(r.ok){this.token=t; this.authenticated=true; window.history.replaceState({},'','/'); this.refreshCacheBanner(); await this.loadStatus();}
       else{this.authError='Invalid token';}
     }catch(e){this.authError='Connection failed';}
     this.autoAuthenticating=false;
+  },
+
+  cacheKey(){ return 'kb_installer_prefill_v1'; },
+
+  refreshCacheBanner(){
+    this.cacheStatusMsg='';
+    this.cacheStatusOk=false;
+    this.cachedProfileFound=false;
+    this.cachedProfileMeta='';
+    try{
+      const raw=localStorage.getItem(this.cacheKey());
+      if(!raw) return;
+      const data=JSON.parse(raw);
+      if(!data || !data.expiresAt || !data.map){
+        localStorage.removeItem(this.cacheKey());
+        return;
+      }
+      if(Date.now() > data.expiresAt){
+        localStorage.removeItem(this.cacheKey());
+        return;
+      }
+      const exp = new Date(data.expiresAt).toLocaleTimeString();
+      const src = data.source || 'cache';
+      this.cachedProfileFound=true;
+      this.cachedProfileMeta=`Local test cache found (${Object.keys(data.map).length} fields, source: ${src}, expires ${exp})`;
+    }catch(_){
+      localStorage.removeItem(this.cacheKey());
+    }
+  },
+
+  applyPrefillMap(map){
+    for(const [k,v] of Object.entries(map||{})){
+      if(this.creds.hasOwnProperty(k)) this.creds[k]=v;
+    }
+    if(this.creds.KB_ADMIN_PASSWORD && !this.wzConfirmPw){
+      this.wzConfirmPw=this.creds.KB_ADMIN_PASSWORD;
+    }
+    this.wzValidated={ git:false, docker:false, cloudflare:false, tailscale:false };
+    this.wzValidResult={ git:null, docker:null, cloudflare:null, tailscale:null };
+  },
+
+  saveCredsToLocalCache(source='manual'){
+    try{
+      const map={};
+      for(const [k,v] of Object.entries(this.creds)){
+        if(v!==null && v!==undefined && String(v).trim()!=='') map[k]=v;
+      }
+      const payload={
+        savedAt: Date.now(),
+        expiresAt: Date.now() + (this.cacheTtlMinutes * 60 * 1000),
+        source,
+        map
+      };
+      localStorage.setItem(this.cacheKey(), JSON.stringify(payload));
+      this.refreshCacheBanner();
+      this.cacheStatusMsg='Temporary local cache saved for quick test loops.';
+      this.cacheStatusOk=true;
+    }catch(_){
+      this.cacheStatusMsg='Could not save local cache in this browser.';
+      this.cacheStatusOk=false;
+    }
+  },
+
+  restoreCachedCreds(){
+    try{
+      const raw=localStorage.getItem(this.cacheKey());
+      if(!raw){
+        this.cacheStatusMsg='No local cache found.';
+        this.cacheStatusOk=false;
+        this.cachedProfileFound=false;
+        return;
+      }
+      const data=JSON.parse(raw);
+      if(!data?.map || !data?.expiresAt || Date.now() > data.expiresAt){
+        localStorage.removeItem(this.cacheKey());
+        this.cacheStatusMsg='Local cache expired. Upload your .env again.';
+        this.cacheStatusOk=false;
+        this.cachedProfileFound=false;
+        return;
+      }
+      this.applyPrefillMap(data.map);
+      this.cacheStatusMsg=`Local cache loaded (${Object.keys(data.map).length} fields).`;
+      this.cacheStatusOk=true;
+      this.configUploaded=true;
+      this.configUploadedMsg='Fields prefilled from temporary local cache';
+    }catch(_){
+      this.cacheStatusMsg='Could not read local cache.';
+      this.cacheStatusOk=false;
+    }
+  },
+
+  clearLocalCache(){
+    localStorage.removeItem(this.cacheKey());
+    this.cachedProfileFound=false;
+    this.cachedProfileMeta='';
+    this.cacheStatusMsg='Local cache cleared.';
+    this.cacheStatusOk=true;
   },
 
   async loadStatus(){
@@ -976,6 +1089,7 @@ function installer(){return{
       KB_VAULT_ROOT_TOKEN: this.creds.KB_VAULT_TOKEN
     };
     this.isRunning=true;
+    this.saveCredsToLocalCache('wizard-submit');
     const s=this.steps.find(x=>x.id==='04-credentials');
     if(s)s.status='running';
     this.startTimer('04-credentials');
@@ -1054,11 +1168,10 @@ function installer(){return{
       const data=await res.json();
       if(data.ok&&data.config){
         const map=data.config;
-        for(const[k,v] of Object.entries(map)){
-          if(this.creds.hasOwnProperty(k)) this.creds[k]=v;
-        }
+        this.applyPrefillMap(map);
         this.configUploaded=true;
         this.configUploadedMsg='Loaded '+Object.keys(map).length+' settings from '+file.name;
+        this.saveCredsToLocalCache('file:'+file.name);
       }else{
         this.configUploadedMsg='Error: '+(data.error||'Unknown error');
         this.configUploaded=false;

@@ -1,0 +1,82 @@
+name: Contribution Gate
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Collect changed files
+        id: changed
+        uses: tj-actions/changed-files@v45
+
+      - name: Print changed files
+        run: |
+          echo "Changed files:"
+          echo "${{ steps.changed.outputs.all_changed_files }}"
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck on changed shell scripts
+        run: |
+          set -euo pipefail
+          files="${{ steps.changed.outputs.all_changed_files }}"
+          sh_files=$(echo "$files" | tr ' ' '\n' | grep -E '\\.sh$|installer/kb$' || true)
+          if [ -z "$sh_files" ]; then
+            echo "No shell files changed."
+            exit 0
+          fi
+          echo "$sh_files" | while read -r file; do
+            [ -n "$file" ] || continue
+            echo "ShellCheck: $file"
+            shellcheck "$file"
+          done
+
+      - name: Block committed secrets patterns
+        run: |
+          set -euo pipefail
+          files="${{ steps.changed.outputs.all_changed_files }}"
+          if [ -z "$files" ]; then
+            exit 0
+          fi
+
+          # Scan only changed text files for high-risk token prefixes.
+          for f in $files; do
+            [ -f "$f" ] || continue
+            if grep -E -n 'ghp_[A-Za-z0-9]{20,}|dckr_pat_[A-Za-z0-9]+|tskey-(api|client)-[A-Za-z0-9-]+|ATATT[A-Za-z0-9]+' "$f"; then
+              echo "Secret-like token detected in $f"
+              exit 1
+            fi
+          done
+
+      - name: Require install evidence for critical paths
+        if: contains(steps.changed.outputs.all_changed_files, 'install.sh') || contains(steps.changed.outputs.all_changed_files, 'package.sh') || contains(steps.changed.outputs.all_changed_files, 'installer/')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = (context.payload.pull_request.body || '').toLowerCase();
+            const required = [
+              'clean reinstall',
+              'e2e',
+              'sof-2',
+              'sof-12'
+            ];
+            const missing = required.filter(k => !body.includes(k));
+            if (missing.length) {
+              core.setFailed(`PR body missing required installer evidence keywords: ${missing.join(', ')}`);
+            }

@@ -1,0 +1,6 @@
+Key ID,Format,Type,Bit Length,Use Case,Target,Primary User,Status,Last Checked,Notes
+contabo.pem,OpenSSH v1,RSA,2048,Standard Contabo user key,Contabo VPS hosts,ubuntu,Limited,2026-03-22,"Key format is valid but login currently denied on active hosts."
+customer1,OpenSSH v1,Ed25519,256,Contabo PROD access,167.86.69.250,root,Active,2026-03-22,"Working key for higher-capacity VPS assigned to production role."
+contabo-rescue,OpenSSH,Ed25519,256,Contabo DEV and rescue access,161.97.112.80,root,Active,2026-03-22,"Working key for lower-capacity VPS assigned to development role."
+fabric.pem,PKCS#1,RSA,2048,Fabric Deployment (Legacy),N/A,N/A,Inactive,2026-03-22,"Deprecated. Retained for reference only. Do not use for new deployments."
+factory.pem,PKCS#1,RSA,2048,Infrastructure Automation,Generic infra host,deployment,Active,2026-03-22,"Factory automation tasks. Verify with provider before use."

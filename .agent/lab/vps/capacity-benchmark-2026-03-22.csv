@@ -1,0 +1,3 @@
+timestamp,ip,hostname,role_assigned,cpu_cores,ram_mb,disk_bytes,root_fs,user,key_path,validation_status
+2026-03-22,161.97.112.80,vmi3123463,dev,6,11960,214748364800,193G,root,_private/keys/contabo-rescue,ok
+2026-03-22,167.86.69.250,vmi3166489,prod,8,24031,429496729600,387G,root,_private/keys/customer1,ok
