@@ -242,7 +242,7 @@ ARGOAPP
         # ---- Wait for Vault pod to be Running (not yet Ready — it needs init first) ----
         log_step "Waiting for Vault pod (pre-init)..."
         local vault_pod=""
-        for _i in $(seq 1 30); do
+        for _i in $(seq 1 60); do
           vault_pod=$(kubectl get pods -n vault -l app.kubernetes.io/name=vault \
                         --field-selector=status.phase=Running \
                         -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
@@ -251,7 +251,7 @@ ARGOAPP
         done
 
         if [ -z "$vault_pod" ]; then
-          log_warn "Vault pod not running after 150s — skipping init (run 'sf vault-init' later)"
+          log_warn "Vault pod not running after 300s — skipping init (run 'sf vault-init' later)"
         else
           log_info "Vault pod: ${vault_pod}"
 
@@ -357,11 +357,11 @@ path "secret/metadata/kaanbal-api/*" {
 }
 VPOL
 
-              # Create auth role for kaanbal-api service account
+              # Create auth role for kaanbal-api service account (allow all app namespaces)
               kubectl exec -n vault "$vault_pod" -- env VAULT_TOKEN="$vault_root_token" \
                 vault write auth/kubernetes/role/kaanbal-api \
                   bound_service_account_names=default,kaanbal-api \
-                  bound_service_account_namespaces=prod \
+                  bound_service_account_namespaces="prod,dev,staging,apps" \
                   policies=kaanbal-api-policy \
                   ttl=24h \
                   &>/dev/null || log_warn "Vault role creation failed — configure manually"
