@@ -386,7 +386,7 @@ body {
             <!-- Wizard sub-step progress bar -->
             <div style="margin-bottom:32px;">
               <div style="display:flex;align-items:center;gap:0;">
-                <template x-for="(label,i) in ['Core','Domain','Git','Docker','Cloudflare','Tailscale','Review']" :key="i">
+                <template x-for="(label,i) in ['Core','Domain','Git','Docker','Cloudflare','Tailscale','AWS','Review']" :key="i">
                   <div style="display:flex;align-items:center;flex:1;">
                     <div style="display:flex;flex-direction:column;align-items:center;flex:1;">
                       <div :style="`width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:all .3s;border:2px solid;` + (wizardStep===i ? 'background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-dim);' : (wizardStep>i ? 'background:var(--ok);border-color:var(--ok);color:#fff;' : 'background:var(--bg-elevated);border-color:var(--border-subtle);color:var(--text-muted);'))">
@@ -395,7 +395,7 @@ body {
                       </div>
                       <div style="font-size:10px;margin-top:4px;white-space:nowrap;" :style="wizardStep===i ? 'color:var(--accent);font-weight:600;' : (wizardStep>i ? 'color:var(--ok);' : 'color:var(--text-muted);')" x-text="label"></div>
                     </div>
-                    <div x-show="i<6" :style="`height:2px;flex:1;margin-bottom:16px;transition:background .3s;` + (wizardStep>i ? 'background:var(--ok);' : 'background:var(--border-subtle);')"></div>
+                    <div x-show="i<7" :style="`height:2px;flex:1;margin-bottom:16px;transition:background .3s;` + (wizardStep>i ? 'background:var(--ok);' : 'background:var(--border-subtle);')"></div>
                   </div>
                 </template>
               </div>
@@ -619,8 +619,47 @@ body {
               </div>
             </div>
 
-            <!-- Sub-step 6: Review & Launch -->
+            <!-- Sub-step 6: AWS -->
             <div x-show="wizardStep===6">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                <h2 style="font-size:20px;font-weight:600;color:#fff;">AWS Credentials</h2>
+                <span style="font-size:11px;padding:4px 10px;border-radius:6px;background:var(--bg-elevated);color:var(--text-muted);border:1px solid var(--border-subtle);">Optional</span>
+              </div>
+              <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">Required for EBS persistent volumes and S3-backed storage. <strong>Skip this step</strong> if you're running on Contabo or any non-AWS provider (local-path storage will be used instead).</p>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div>
+                  <label class="label">AWS Region</label>
+                  <input x-model="creds.KB_AWS_REGION" class="input" @input="wzValidated.aws=false" placeholder="us-east-1">
+                  <div style="margin-top:4px;font-size:11px;color:var(--text-muted);">e.g. us-east-1, eu-west-1, ap-southeast-1</div>
+                </div>
+                <div>
+                  <label class="label">Access Key ID</label>
+                  <input x-model="creds.KB_AWS_ACCESS_KEY" class="input" @input="wzValidated.aws=false" placeholder="AKIA...">
+                </div>
+                <div>
+                  <label class="label">Secret Access Key</label>
+                  <input type="password" x-model="creds.KB_AWS_SECRET_KEY" class="input" @input="wzValidated.aws=false" placeholder="wJalr...">
+                </div>
+              </div>
+              <template x-if="wzValidResult.aws">
+                <div :style="`margin-top:12px;padding:10px 14px;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px;` + (wzValidResult.aws.valid ? 'background:var(--ok-dim);border:1px solid rgba(16,185,129,.3);color:#6ee7b7;' : 'background:var(--danger-dim);border:1px solid rgba(239,68,68,.3);color:#fca5a5;')">
+                  <span x-text="wzValidResult.aws.valid ? '✓' : '✗'"></span>
+                  <span x-text="wzValidResult.aws.valid ? 'AWS credentials verified — Account: ' + (wzValidResult.aws.account||'') : (wzValidResult.aws.errors[0]?.msg || 'Validation failed')"></span>
+                </div>
+              </template>
+              <div style="display:flex;gap:12px;margin-top:24px;">
+                <button @click="wizardStep=5" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
+                <button @click="wzValidateService('aws')" :disabled="wzValidating.aws || !creds.KB_AWS_ACCESS_KEY || !creds.KB_AWS_SECRET_KEY"
+                  :style="`padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-secondary);transition:all .2s;` + (wzValidating.aws ? 'opacity:.6;cursor:wait;' : '')"
+                  x-text="wzValidating.aws ? 'Testing...' : (wzValidated.aws ? '✓ Re-test' : 'Test Connection')"></button>
+                <button @click="wzValidated.aws=true; wizardNext()" class="btn btn-ghost" style="padding:12px 20px;border:1px dashed var(--border-subtle);"
+                  x-show="!wzValidated.aws">Skip →</button>
+                <button @click="wizardNext()" :disabled="!wzValidated.aws" class="btn btn-primary" style="flex:1;" :style="!wzValidated.aws ? 'opacity:.4;cursor:not-allowed;' : ''">Next →</button>
+              </div>
+            </div>
+
+            <!-- Sub-step 7: Review & Launch -->
+            <div x-show="wizardStep===7">
               <h2 style="font-size:20px;font-weight:600;color:#fff;margin-bottom:4px;">Review &amp; Start</h2>
               <p style="color:var(--text-secondary);font-size:13px;margin-bottom:24px;">Everything is validated. Review the summary and click Start Installation to provision your platform.</p>
               <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px;">
@@ -652,6 +691,10 @@ body {
                   <div><div style="font-size:13px;font-weight:600;color:#fff;">Tailscale</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.KB_TAILSCALE_DNS_SUFFIX || creds.KB_TAILSCALE_CLIENT_ID || '—'"></div></div>
                   <div style="color:var(--ok);font-size:18px;">✓</div>
                 </div>
+                <div class="surface-elevated" style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+                  <div><div style="font-size:13px;font-weight:600;color:#fff;">AWS</div><div style="font-size:11px;color:var(--text-muted);" x-text="creds.KB_AWS_ACCESS_KEY ? creds.KB_AWS_REGION + ' · ' + creds.KB_AWS_ACCESS_KEY.substring(0,8) + '...' : 'Skipped (local-path storage)'"></div></div>
+                  <div :style="creds.KB_AWS_ACCESS_KEY ? 'color:var(--ok);font-size:18px;' : 'color:var(--text-muted);font-size:18px;'" x-text="creds.KB_AWS_ACCESS_KEY ? '✓' : '—'"></div>
+                </div>
               </div>
 
               <!-- Quick-fill drop zone -->
@@ -668,7 +711,7 @@ body {
               </div>
 
               <div style="display:flex;gap:12px;">
-                <button @click="wizardStep=5" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
+                <button @click="wizardStep=6" class="btn btn-ghost" style="padding:12px 20px;">← Back</button>
                 <button @click="submitCredentials()" :disabled="isValidating || isRunning" class="btn btn-primary" style="flex:1;font-size:14px;">
                   <template x-if="isValidating || isRunning">
                     <svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4m0 12v4m10-10h-4M6 12H2m15.07-7.07l-2.83 2.83M9.76 14.24l-2.83 2.83m12.73 0l-2.83-2.83M9.76 9.76L6.93 6.93"/></svg>
@@ -778,9 +821,9 @@ function installer(){return{
   // Wizard state
   wizardStep: 0,
   wzConfirmPw: '',
-  wzValidating: { git:false, docker:false, cloudflare:false, tailscale:false },
-  wzValidated:  { git:false, docker:false, cloudflare:false, tailscale:false },
-  wzValidResult:{ git:null,  docker:null,  cloudflare:null,  tailscale:null  },
+  wzValidating: { git:false, docker:false, cloudflare:false, tailscale:false, aws:false },
+  wzValidated:  { git:false, docker:false, cloudflare:false, tailscale:false, aws:false },
+  wzValidResult:{ git:null,  docker:null,  cloudflare:null,  tailscale:null,  aws:null  },
   activeModal: null,
   creds: {
     KB_MODE: 'standalone',
@@ -885,8 +928,8 @@ function installer(){return{
     if(this.creds.KB_ADMIN_PASSWORD && !this.wzConfirmPw){
       this.wzConfirmPw=this.creds.KB_ADMIN_PASSWORD;
     }
-    this.wzValidated={ git:false, docker:false, cloudflare:false, tailscale:false };
-    this.wzValidResult={ git:null, docker:null, cloudflare:null, tailscale:null };
+    this.wzValidated={ git:false, docker:false, cloudflare:false, tailscale:false, aws:false };
+    this.wzValidResult={ git:null, docker:null, cloudflare:null, tailscale:null, aws:null };
   },
 
   saveCredsToLocalCache(source='manual'){
@@ -1100,7 +1143,7 @@ function installer(){return{
   },
 
   wizardNext(){
-    if(this.wizardStep < 6) this.wizardStep++;
+    if(this.wizardStep < 7) this.wizardStep++;
   },
 
   async wzValidateService(service){
@@ -1120,7 +1163,8 @@ function installer(){return{
         git:        ['KB_GIT_USER','KB_GIT_TOKEN','KB_GIT_EMAIL','KB_GIT_WORKSPACE'],
         docker:     ['KB_DOCKER_USER','KB_DOCKER_TOKEN'],
         cloudflare: ['KB_CLOUDFLARE_TOKEN','KB_CLOUDFLARE_ACCOUNT_ID'],
-        tailscale:  ['KB_TAILSCALE_CLIENT_ID','KB_TAILSCALE_CLIENT_SECRET','KB_TAILSCALE_ACL_TOKEN']
+        tailscale:  ['KB_TAILSCALE_CLIENT_ID','KB_TAILSCALE_CLIENT_SECRET','KB_TAILSCALE_ACL_TOKEN'],
+        aws:        ['KB_AWS_ACCESS_KEY','KB_AWS_SECRET_KEY','KB_AWS_REGION']
       };
       const fields = fieldMap[service] || [];
       const errs = (d.errors||[]).filter(e=>fields.includes(e.field)||fields.length===0);

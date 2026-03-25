@@ -957,6 +957,100 @@ class InstallerHandler(http.server.BaseHTTPRequestHandler):
                 errors.append({"field": "KB_CLOUDFLARE_ACCOUNT_ID",
                                "msg": "Cloudflare Account ID is required when providing a Cloudflare token"})
 
+        # --- AWS Credentials validation (optional) ---
+        aws_access_key = (body.get("KB_AWS_ACCESS_KEY") or "").strip()
+        aws_secret_key = (body.get("KB_AWS_SECRET_KEY") or "").strip()
+        aws_region = (body.get("KB_AWS_REGION") or "us-east-1").strip()
+
+        if aws_access_key and aws_secret_key:
+            import urllib.request
+            import urllib.error
+            import hmac
+            import hashlib
+
+            try:
+                # AWS STS GetCallerIdentity via Signature V4 (stdlib only)
+                service = "sts"
+                host = f"sts.{aws_region}.amazonaws.com"
+                endpoint = f"https://{host}/"
+                request_body = "Action=GetCallerIdentity&Version=2011-06-15"
+                now = __import__("datetime").datetime.utcnow()
+                datestamp = now.strftime("%Y%m%d")
+                amzdate = now.strftime("%Y%m%dT%H%M%SZ")
+
+                # Sig V4 signing
+                def _sign(key, msg):
+                    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
+
+                def _get_signature_key(key, date_stamp, region_name, service_name):
+                    k_date = _sign(("AWS4" + key).encode("utf-8"), date_stamp)
+                    k_region = _sign(k_date, region_name)
+                    k_service = _sign(k_region, service_name)
+                    k_signing = _sign(k_service, "aws4_request")
+                    return k_signing
+
+                content_type = "application/x-www-form-urlencoded"
+                payload_hash = hashlib.sha256(request_body.encode("utf-8")).hexdigest()
+                canonical_headers = f"content-type:{content_type}\nhost:{host}\nx-amz-date:{amzdate}\n"
+                signed_headers = "content-type;host;x-amz-date"
+                canonical_request = f"POST\n/\n\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
+                credential_scope = f"{datestamp}/{aws_region}/{service}/aws4_request"
+                string_to_sign = f"AWS4-HMAC-SHA256\n{amzdate}\n{credential_scope}\n{hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()}"
+                signing_key = _get_signature_key(aws_secret_key, datestamp, aws_region, service)
+                signature = hmac.new(signing_key, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
+                authorization = f"AWS4-HMAC-SHA256 Credential={aws_access_key}/{credential_scope}, SignedHeaders={signed_headers}, Signature={signature}"
+
+                req = urllib.request.Request(endpoint, data=request_body.encode("utf-8"), method="POST")
+                req.add_header("Content-Type", content_type)
+                req.add_header("X-Amz-Date", amzdate)
+                req.add_header("Authorization", authorization)
+                req.add_header("User-Agent", "KB-Installer/1.0")
+
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    resp_text = resp.read().decode("utf-8")
+                    # Parse XML response for Account and Arn
+                    account = ""
+                    arn = ""
+                    import re as _re
+                    m_acct = _re.search(r"<Account>([^<]+)</Account>", resp_text)
+                    m_arn = _re.search(r"<Arn>([^<]+)</Arn>", resp_text)
+                    if m_acct:
+                        account = m_acct.group(1)
+                    if m_arn:
+                        arn = m_arn.group(1)
+                    warnings.append({
+                        "field": "KB_AWS_ACCESS_KEY",
+                        "msg": f"AWS credentials valid — Account: {account}, ARN: {arn}"
+                    })
+
+            except urllib.error.HTTPError as e:
+                err_body = ""
+                try:
+                    err_body = e.read().decode("utf-8", errors="replace")[:200]
+                except Exception:
+                    pass
+                if e.code in (401, 403):
+                    errors.append({
+                        "field": "KB_AWS_ACCESS_KEY",
+                        "msg": "AWS authentication failed — verify your Access Key and Secret Key"
+                    })
+                else:
+                    warnings.append({
+                        "field": "KB_AWS_ACCESS_KEY",
+                        "msg": f"AWS STS returned HTTP {e.code}: {err_body[:100]}"
+                    })
+            except urllib.error.URLError as e:
+                # DNS resolution failure = invalid region or network issue
+                warnings.append({
+                    "field": "KB_AWS_REGION",
+                    "msg": f"AWS region '{aws_region}' may not be valid or is unreachable: {str(e.reason)[:80]}"
+                })
+            except Exception as e:
+                warnings.append({
+                    "field": "KB_AWS_ACCESS_KEY",
+                    "msg": f"Could not verify AWS credentials: {str(e)[:100]}"
+                })
+
         result = {
             "valid": len(errors) == 0,
             "errors": errors,
